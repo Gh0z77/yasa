@@ -1,0 +1,23 @@
+{
+  "en": {
+    "__YASA_LANG__": "en",
+    "__YASA_APP_TITLE__": "Yasa app",
+    "__YASA_APP_DESCRIPTION__": "A web app built with Yasa.",
+    "__YASA_PLACEHOLDER_TITLE__": "Your app will appear here",
+    "__YASA_PLACEHOLDER_TEXT__": "Describe what you want to build in the chat and watch it come to life."
+  },
+  "uz": {
+    "__YASA_LANG__": "uz",
+    "__YASA_APP_TITLE__": "Yasa ilovasi",
+    "__YASA_APP_DESCRIPTION__": "Yasa yordamida yaratilgan veb-ilova.",
+    "__YASA_PLACEHOLDER_TITLE__": "Ilovangiz shu yerda paydo boʻladi",
+    "__YASA_PLACEHOLDER_TEXT__": "Chatda nima qurmoqchi ekaningizni yozing — u koʻz oʻngingizda jonlanadi."
+  },
+  "ru": {
+    "__YASA_LANG__": "ru",
+    "__YASA_APP_TITLE__": "Приложение Yasa",
+    "__YASA_APP_DESCRIPTION__": "Веб-приложение, созданное с помощью Yasa.",
+    "__YASA_PLACEHOLDER_TITLE__": "Здесь появится ваше приложение",
+    "__YASA_PLACEHOLDER_TEXT__": "Опишите в чате, что хотите создать, — и оно оживёт на ваших глазах."
+  }
+}

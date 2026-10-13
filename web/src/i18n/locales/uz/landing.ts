@@ -1,0 +1,120 @@
+// Uzbek (Latin). Typography: ʻ (U+02BB) in oʻ / gʻ and ʼ (U+02BC) for the tutuq belgisi; no ASCII apostrophes in this file.
+import type { DictShape } from "../../types";
+import type { landing as en } from "../en/landing";
+
+export const landing = {
+  hero: {
+    badge: "Oʻzbek, rus va ingliz tillaridagi AI ilova quruvchi",
+    titleStart: "Gʻoyani yozing.",
+    titleAccent: "Ilova tayyor.",
+    subtitle:
+      "Nima kerakligini oddiy soʻzlar bilan yozing. Yasa kodni yozadi, natijani jonli koʻrinishda koʻrsatadi va saytingizni bir bosishda nashr qiladi.",
+    note: "Boshlash bepul. Bank kartasi kerak emas.",
+    ctaPrimary: "Bepul boshlash",
+    ctaSecondary: "Qanday ishlashini koʻrish",
+    scrollHint: "Pastga aylantiring va sayt qanday yaratilishini koʻring",
+    point1: "Hech narsa oʻrnatish shart emas",
+    point2: "Oʻzbek, rus va ingliz tillarida",
+    point3: "Bir bosishda internetda",
+  },
+
+  story: {
+    eyebrow: "Qanday ishlaydi",
+    title: "Gʻoya qanday qilib saytga aylanishini koʻring",
+    subtitle: "Pastga aylantiring. Yasa ichida hammasi aynan shunday boʻladi.",
+    stepLabel: "{n}-qadam, jami {total} ta",
+    step1Title: "Siz gʻoyani yozasiz",
+    step1Text: "Nima kerakligini oddiy soʻzlar bilan, doʻstingizga tushuntirgandek yozing.",
+    step2Title: "Bitta xabar yuborasiz",
+    step2Text: "Hech qanday shakl va sozlama yoʻq. Boshlash uchun bitta xabar kifoya.",
+    step3Title: "Yasa kodni yozadi",
+    step3Text: "AI loyihani rejalashtiradi va fayllarni koʻz oʻngingizda birin-ketin yaratadi.",
+    step4Title: "Jonli koʻrinish paydo boʻladi",
+    step4Text: "Tayyor sayt jonli koʻrinishda chiqadi. Oʻzgarish soʻrasangiz, u shu zahoti yangilanadi.",
+    step5Title: "Bir bosishda nashr qilasiz",
+    step5Text: "Loyiha alohida havolada internetga chiqadi va uni istalgan kishiga ulashish mumkin.",
+    demo: {
+      placeholder: "Ilovangizni tasvirlang…",
+      prompt: "Qahvaxonam uchun menyu va stol band qilish tugmasi bor lending yasab ber",
+      thinking: "Loyihani rejalashtiryapman…",
+      done: "1-versiya tayyor, xatosiz yigʻildi",
+      preview: "Koʻrinish",
+      empty: "Jonli koʻrinish shu yerda chiqadi",
+      publish: "Nashr qilish",
+      published: "Nashr qilindi",
+      live: "Saytingiz internetda",
+      siteMenu: "Menyu",
+      siteAbout: "Biz haqimizda",
+      siteContact: "Aloqa",
+      siteTitle: "Har tong yangi qahva",
+      siteText: "Qoʻlda qovurilgan donlar, issiq pishiriqlar va shahar markazidagi sokin burchak.",
+      siteCta: "Stol band qilish",
+      item1: "Kapuchino",
+      item2: "Latte",
+      item3: "Kruassan",
+    },
+  },
+
+  features: {
+    eyebrow: "Imkoniyatlar",
+    title: "Ishga tushirish uchun kerak boʻlgan hamma narsa",
+    subtitle: "Loyihani yaratish, sayqallash va ishga tushirish uchun toʻliq ustaxona.",
+    chatTitle: "Suhbat orqali yarating",
+    chatText: "Vazifani hamkasbingizga tushuntirgandek yozing. Yasa rejalashtiradi, kodni yozadi va xatolarni tuzatadi.",
+    previewTitle: "Jonli koʻrinish",
+    previewText: "Har bir oʻzgarishni kompyuter, planshet va telefon oʻlchamlarida shu zahoti koʻring.",
+    selectTitle: "Koʻrsating va oʻzgartiring",
+    selectText: "Koʻrinishda istalgan elementni tanlang va AIga unda aynan nimani oʻzgartirish kerakligini ayting.",
+    codeTitle: "Kod toʻliq sizniki",
+    codeText: "Har bir faylni ichki muharrirda koʻring va tahrirlang yoki butun loyihani arxiv qilib yuklab oling.",
+    historyTitle: "Versiyalar tarixi",
+    historyText: "Har bir qadam versiya sifatida saqlanadi. Oʻzgarishlarni solishtiring va istalgan versiyani bir bosishda tiklang.",
+    publishTitle: "Bir bosishda nashr qilish",
+    publishText: "Loyihangizni alohida havolada internetga chiqaring va mijozlar, doʻstlar yoki hamjamiyat bilan ulashing.",
+  },
+
+  showcase: {
+    eyebrow: "Hamjamiyat",
+    title: "Yasada yaratilgan",
+    subtitle: "Hamjamiyatning haqiqiy loyihalari. Birini oching va remiks qilib oʻzingizniki qiling.",
+    viewAll: "Hamjamiyatni koʻrish",
+  },
+
+  cta: {
+    title: "Gʻoyangizgacha bitta xabar qoldi",
+    subtitle: "Uni quyida yozing. Bepul hisob yaratishingiz bilanoq qurishni boshlaymiz.",
+  },
+
+  about: {
+    eyebrow: "Bir jumlada",
+    title: "Yasa nima?",
+    lead: "Yasa — oddiy soʻzlar bilan yozilgan gʻoyani ishlaydigan veb-ilovaga aylantiradigan AI quruvchi. Kod, jonli koʻrinish va nashr — hammasi bitta oynada, hech narsa oʻrnatmasdan.",
+  },
+
+  numbers: {
+    eyebrow: "Raqamlarda",
+    title: "Yasa raqamlarda",
+    n1Kicker: "Tezlik",
+    n1Label: "soniyada birinchi versiya",
+    n1Text: "Grafik, jadval va formali sahifa sinovlarimizda 45–125 soniyada yigʻildi.",
+    n2Kicker: "Ishonchlilik",
+    n2Label: "AI provayder",
+    n2Text: "Biri javob bermasa, ish oʻzi keyingisiga oʻtadi.",
+    n3Kicker: "Tillar",
+    n3Label: "til",
+    n3Text: "Interfeys va AI javoblari oʻzbek, rus va ingliz tillarida.",
+    n4Kicker: "Nashr",
+    n4Label: "bosishda internetda",
+    n4Text: "Tayyor loyiha alohida havola oladi va uni istalgan kishiga ulashish mumkin.",
+  },
+
+  footer: {
+    nav: "Quyi navigatsiya",
+    tagline: "Gʻoyadan ishlaydigan ilovagacha — bitta suhbat.",
+    product: "Mahsulot",
+    resources: "Resurslar",
+    account: "Hisob",
+    how: "Qanday ishlaydi",
+    features: "Imkoniyatlar",
+  },
+} as const satisfies DictShape<typeof en>;

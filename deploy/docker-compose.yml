@@ -1,0 +1,52 @@
+# Yasa on one server: the app plus Caddy for HTTPS.
+#   docker compose --env-file .env up -d --build        (run inside deploy/)
+services:
+  app:
+    build:
+      context: ..
+      args:
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
+    restart: unless-stopped
+    environment:
+      APP_URL: https://${APP_DOMAIN}
+      SANDBOX_DOMAIN: ${SANDBOX_DOMAIN}
+      SANDBOX_PROTOCOL: https
+      TRUST_PROXY: "true"
+      APP_SECRET: ${APP_SECRET}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DAILY_MESSAGE_LIMIT: ${DAILY_MESSAGE_LIMIT:-100}
+    volumes:
+      - yasa-data:/app/data
+    expose:
+      - "3000"
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      SANDBOX_DOMAIN: ${SANDBOX_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  yasa-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,37 @@
+{
+	email {$ACME_EMAIL}
+	# Custom domains get a certificate on their first request, but only after the app confirms that the
+	# domain was verified by its owner (otherwise anyone could make this server request certificates).
+	on_demand_tls {
+		ask http://app:3000/api/tls-check
+	}
+}
+
+# The builder itself.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# Chat answers are streamed: pass them through as they arrive.
+		flush_interval -1
+	}
+}
+
+# Previews (pv-<token>.<sandbox>) and published apps (<slug>.<sandbox>). One wildcard certificate covers them
+# all; it needs a DNS challenge, here through Cloudflare. Do not issue per-host certificates for these: every
+# preview has its own host name and Let's Encrypt limits new certificates per domain.
+*.{$SANDBOX_DOMAIN}, {$SANDBOX_DOMAIN} {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	}
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+# Custom domains that users connected to their published apps.
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy app:3000
+}

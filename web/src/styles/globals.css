@@ -1,0 +1,562 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Class-based dark mode: `.dark` on <html> (set by ThemeProvider and /theme-init.js). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------------------------------
+   Design tokens. A bright editorial system: near-white page, ink text, white cards on soft shadows and one
+   orange accent. Dark keeps the same structure on near-black.
+   ------------------------------------------------------------------------------------------ */
+:root {
+  --radius: 0.875rem;
+
+  --background: #f7f7f7;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #ffffff;
+  --secondary: #efeff0;
+  --secondary-foreground: #18181b;
+  --muted: #f0f0f1;
+  --muted-foreground: #52525b;
+  --accent: #efeff1;
+  --accent-foreground: #18181b;
+  --destructive: oklch(0.577 0.22 27.325);
+  --destructive-foreground: #ffffff;
+  --success: oklch(0.56 0.14 150);
+  --success-foreground: #ffffff;
+  --warning: oklch(0.68 0.16 62);
+  --warning-foreground: #ffffff;
+  --info: oklch(0.56 0.12 240);
+  --info-foreground: #ffffff;
+  --border: #e6e6e9;
+  --input: #d7d7dc;
+  --ring: #fb6a00;
+
+  /* Brand: one orange, with a lighter start for the few gradients. */
+  --brand-from: #ff9a3d;
+  --brand-via: #fb6a00;
+  --brand-to: #fb6a00;
+  --brand-foreground: #ffffff;
+  /* Warm grey of secondary headings and big muted numerals. */
+  --taupe: #8a8575;
+
+  /* Panels: white cards lifted by a soft shadow (the old "glass" names are kept for the components). */
+  --glass: rgb(255 255 255 / 88%);
+  --glass-strong: #ffffff;
+  --glass-border: #e9e9ec;
+  --glass-highlight: rgb(255 255 255 / 0%);
+  --glass-shadow: 0 1px 2px rgb(10 10 10 / 4%), 0 14px 34px -14px rgb(10 10 10 / 14%);
+  --blob-a: rgb(251 106 0 / 20%);
+  --blob-b: rgb(140 120 255 / 13%);
+  --blob-c: rgb(255 170 110 / 22%);
+
+  --surface: #ffffff;
+  --overlay: rgb(10 10 10 / 40%);
+  --scrollbar: rgb(10 10 10 / 16%);
+  --scrollbar-hover: rgb(10 10 10 / 30%);
+
+  --shadow-color: 240 6% 10%;
+}
+
+.dark {
+  --background: #0b0b0c;
+  --foreground: #f5f5f4;
+  --card: #151517;
+  --card-foreground: #f5f5f4;
+  --popover: #18181b;
+  --popover-foreground: #f5f5f4;
+  --primary: #fafafa;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1f1f23;
+  --secondary-foreground: #f5f5f4;
+  --muted: #1b1b1e;
+  --muted-foreground: #a1a1aa;
+  --accent: #232327;
+  --accent-foreground: #f5f5f4;
+  --destructive: oklch(0.66 0.2 25);
+  --destructive-foreground: #ffffff;
+  --success: oklch(0.76 0.14 150);
+  --success-foreground: #06140b;
+  --warning: oklch(0.8 0.14 70);
+  --warning-foreground: #1c1203;
+  --info: oklch(0.77 0.085 225);
+  --info-foreground: #06121c;
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #ff7a1a;
+
+  --brand-from: #ffa95c;
+  --brand-via: #ff7a1a;
+  --brand-to: #ff7a1a;
+  --brand-foreground: #140a02;
+  --taupe: #9b968a;
+
+  --glass: rgb(21 21 23 / 86%);
+  --glass-strong: #17171a;
+  --glass-border: rgb(255 255 255 / 10%);
+  --glass-highlight: rgb(255 255 255 / 5%);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 18px 40px -18px rgb(0 0 0 / 80%);
+  --blob-a: rgb(255 122 26 / 16%);
+  --blob-b: rgb(120 105 255 / 12%);
+  --blob-c: rgb(255 150 90 / 10%);
+
+  --surface: #111113;
+  --overlay: rgb(0 0 0 / 62%);
+  --scrollbar: rgb(255 255 255 / 16%);
+  --scrollbar-hover: rgb(255 255 255 / 30%);
+
+  --shadow-color: 240 10% 2%;
+}
+
+@theme inline {
+  /* Outfit and Bricolage Grotesque have no Cyrillic: Russian text falls through to Inter. */
+  --font-sans: 'Outfit Variable', 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+  /* Headlines. */
+  --font-display: 'Bricolage Grotesque Variable', 'Inter Variable', 'Helvetica Neue', Arial, sans-serif;
+  /* Tall condensed figures: card numbers and statistics. */
+  --font-numeral: 'Anton', 'Arial Narrow', 'Inter Variable', system-ui, sans-serif;
+  /* Italic serif of the main call to action. */
+  --font-serif: 'Source Serif 4 Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-overlay: var(--overlay);
+  --color-brand-from: var(--brand-from);
+  --color-brand-via: var(--brand-via);
+  --color-brand-to: var(--brand-to);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand: var(--brand-to);
+  --color-taupe: var(--taupe);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+
+  --radius-xs: calc(var(--radius) - 8px);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: calc(var(--radius) - 2px);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) + 4px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --shadow-xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.05);
+  --shadow-sm: 0 1px 2px 0 hsl(var(--shadow-color) / 0.06), 0 1px 3px 0 hsl(var(--shadow-color) / 0.06);
+  --shadow-md: 0 2px 4px -1px hsl(var(--shadow-color) / 0.06), 0 6px 12px -2px hsl(var(--shadow-color) / 0.08);
+  --shadow-lg: 0 4px 8px -2px hsl(var(--shadow-color) / 0.06), 0 16px 32px -6px hsl(var(--shadow-color) / 0.12);
+  --shadow-xl: 0 8px 16px -4px hsl(var(--shadow-color) / 0.08), 0 28px 56px -12px hsl(var(--shadow-color) / 0.18);
+
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-gradient: gradient-shift 8s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+  --animate-blink: blink 1s steps(2, start) infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes gradient-shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @keyframes blink {
+    to {
+      visibility: hidden;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+   Base
+   ------------------------------------------------------------------------------------------ */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+    font-feature-settings: 'calt', 'liga' 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+
+  /* Tailwind v4 resets buttons to the default cursor; interactive things should feel clickable. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'],
+  [role='menuitem'],
+  [role='option'],
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--brand-to) 26%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-hover);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+   Utilities
+   ------------------------------------------------------------------------------------------ */
+
+/* Brand gradient as a background: `bg-brand-gradient`. */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(120deg, var(--brand-from) 0%, var(--brand-via) 50%, var(--brand-to) 100%);
+}
+
+/* Brand gradient text: `text-brand-gradient`. */
+@utility text-brand-gradient {
+  background-image: linear-gradient(120deg, var(--brand-from) 0%, var(--brand-via) 50%, var(--brand-to) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* 1px brand-gradient border on any rounded box (keeps the element's own background): `border-brand-gradient`. */
+@utility border-brand-gradient {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--brand-from), var(--brand-via), var(--brand-to));
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* Soft blurred colour clouds behind a section: put on an absolutely positioned, aria-hidden element. */
+@utility brand-glow {
+  background-image:
+    radial-gradient(38% 46% at 22% 62%, var(--blob-a) 0%, transparent 100%),
+    radial-gradient(30% 40% at 8% 34%, var(--blob-b) 0%, transparent 100%),
+    radial-gradient(34% 44% at 46% 50%, var(--blob-c) 0%, transparent 100%);
+  filter: blur(56px);
+  pointer-events: none;
+}
+
+/* Colored drop shadow for gradient buttons / highlighted cards. */
+@utility shadow-brand {
+  box-shadow:
+    0 1px 2px 0 color-mix(in oklab, var(--brand-via) 24%, transparent),
+    0 10px 26px -8px color-mix(in oklab, var(--brand-via) 46%, transparent);
+}
+
+/* Subtle dotted grid backdrop (preview canvas, empty states). */
+@utility bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--foreground) 12%, transparent) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Loading shimmer overlay; pair with `animate-shimmer`. */
+@utility bg-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--foreground) 8%, transparent) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Reserve the scrollbar gutter so content does not shift when it appears. */
+@utility scrollbar-stable {
+  scrollbar-gutter: stable;
+}
+
+/* Safe-area aware paddings for mobile bottom bars. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Standard page container: `container-page`. */
+@utility container-page {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+   Panels and brand details
+   ------------------------------------------------------------------------------------------ */
+
+/* Card: sidebar, panels, list items. */
+@utility glass {
+  background-color: var(--glass);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    var(--glass-shadow);
+}
+
+/* The raised card: the prompt box, highlighted cards. */
+@utility glass-strong {
+  background-color: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    0 1px 2px rgb(10 10 10 / 5%),
+    0 26px 60px -28px color-mix(in oklab, var(--foreground) 34%, transparent);
+}
+
+/* Quiet control (icon buttons, chips). */
+@utility glass-control {
+  background-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+  border: 1px solid var(--glass-border);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+  &:hover {
+    background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+    border-color: color-mix(in oklab, var(--foreground) 22%, var(--glass-border));
+  }
+}
+
+/* Active navigation row. */
+@utility nav-active {
+  background-color: color-mix(in oklab, var(--foreground) 7%, transparent);
+  border-color: var(--glass-border);
+  box-shadow: inset 2px 0 0 0 var(--brand-to);
+}
+
+/* The primary call to action: an ink pill. */
+@utility bg-cta {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 26px -14px color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+
+/* Send button: the one orange control. */
+@utility bg-send {
+  background-color: var(--brand-to);
+  color: var(--brand-foreground);
+  box-shadow: 0 10px 24px -10px color-mix(in oklab, var(--brand-to) 70%, transparent);
+}
+
+/* A field of orange dots fading out of the top-right corner of a card. */
+@utility dot-corner {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 64%;
+    height: 62%;
+    border-top-right-radius: inherit;
+    background-image: radial-gradient(circle at 1.5px 1.5px, color-mix(in oklab, var(--brand-to) 46%, transparent) 1.1px, transparent 0);
+    background-size: 9px 9px;
+    -webkit-mask-image: radial-gradient(120% 120% at 100% 0%, #000 0%, transparent 64%);
+    mask-image: radial-gradient(120% 120% at 100% 0%, #000 0%, transparent 64%);
+    pointer-events: none;
+  }
+}
+
+/* Small uppercase label above headings and under figures. */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Elements animated by anime.js start from here once the script marks the page as ready. */
+.motion-ready [data-reveal],
+.motion-ready [data-reveal-item],
+.motion-ready [data-hero] {
+  will-change: transform, opacity;
+}
