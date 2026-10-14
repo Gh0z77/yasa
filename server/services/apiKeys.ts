@@ -23,8 +23,24 @@ function toInfo(row: KeyRow): ApiKeyInfo {
   };
 }
 
+/**
+ * All of a user's key rows, kept for a couple of seconds: listing the models asks for each provider in turn,
+ * and on a hosted database each question is a round trip. Writes on this instance drop the copy at once.
+ */
+const recent = new Map<string, { at: number; rows: KeyRow[] }>();
+const RECENT_MS = 2_000;
+
+function rowsFor(userId: string): KeyRow[] {
+  const hit = recent.get(userId);
+  if (hit && Date.now() - hit.at < RECENT_MS) return hit.rows;
+  const rows = all<KeyRow>('SELECT * FROM user_api_keys WHERE user_id = ? ORDER BY provider', userId);
+  if (recent.size > 500) recent.clear();
+  recent.set(userId, { at: Date.now(), rows });
+  return rows;
+}
+
 export function listApiKeys(userId: string): ApiKeyInfo[] {
-  return all<KeyRow>('SELECT * FROM user_api_keys WHERE user_id = ? ORDER BY provider', userId).map(toInfo);
+  return rowsFor(userId).map(toInfo);
 }
 
 export function setApiKey(
@@ -33,6 +49,7 @@ export function setApiKey(
   apiKey: string,
   opts: { baseUrl?: string | null; model?: string | null } = {},
 ): ApiKeyInfo {
+  recent.delete(userId);
   const key = apiKey.trim();
   run(
     `INSERT INTO user_api_keys (user_id, provider, encrypted_key, last4, base_url, model, created_at)
@@ -51,6 +68,7 @@ export function setApiKey(
 }
 
 export function deleteApiKey(userId: string, provider: KeyProvider): void {
+  recent.delete(userId);
   run('DELETE FROM user_api_keys WHERE user_id = ? AND provider = ?', userId, provider);
 }
 
@@ -59,7 +77,7 @@ export function getUserApiKey(
   userId: string,
   provider: KeyProvider,
 ): { apiKey: string; baseUrl: string | null; model: string | null } | null {
-  const row = get<KeyRow>('SELECT * FROM user_api_keys WHERE user_id = ? AND provider = ?', userId, provider);
+  const row = rowsFor(userId).find((r) => r.provider === provider);
   if (!row) return null;
   const apiKey = decryptSecret(row.encrypted_key);
   if (!apiKey) {

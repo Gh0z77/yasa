@@ -2,7 +2,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { LIMITS } from '../../shared/constants';
-import type { DomainsResponse, MembersResponse, OkResponse, ProjectDomain, ProjectMember, SupabaseApplyResponse, SupabaseOverview, SupabaseStatus } from '../../shared/types';
+import type { DomainsResponse, MembersResponse, OkResponse, ProjectDomain, ProjectMember, SupabaseApplyResponse, SupabaseOverview, SupabaseStatus, SupabaseAccountProject } from '../../shared/types';
 import { isGenerating } from '../ai/jobs';
 import { ownProject, viewProject } from '../lib/access';
 import { conflict, forbidden, notFound, unauthorized } from '../lib/errors';
@@ -11,6 +11,7 @@ import { parseJson } from '../lib/validate';
 import { addDomain, listDomains, projectIdForDomain, removeDomain, verifyDomain } from '../services/domains';
 import { listMembers, removeMember, setMember } from '../services/members';
 import { applyPendingMigrations, connectSupabase, disconnectSupabase, getSupabaseOverview, getSupabaseStatus, markMigrationApplied } from '../services/supabase';
+import { createSupabaseProject, linkSupabaseProject } from '../services/supabase-account';
 import { getUserById } from '../services/users';
 import type { AppEnv } from '../types';
 
@@ -81,6 +82,21 @@ collabRoutes.delete('/:id/supabase', (c) => {
   const { row } = ownProject(c);
   disconnectSupabase(row.id);
   return c.json<SupabaseStatus>(getSupabaseStatus(row.id));
+});
+
+// Link one of the user's own Supabase projects (from the connected account), or create a new one for this app.
+collabRoutes.post('/:id/supabase/link', async (c) => {
+  const { row, user } = ownProject(c);
+  const body = await parseJson(c, z.object({ ref: z.string().trim().min(12).max(40) }));
+  await linkSupabaseProject(user.id, row.id, body.ref);
+  return c.json<SupabaseStatus>(getSupabaseStatus(row.id));
+});
+
+collabRoutes.post('/:id/supabase/create', async (c) => {
+  const { row, user } = ownProject(c);
+  const body = await parseJson(c, z.object({ organizationId: z.string().trim().max(80).optional(), region: z.string().trim().max(40).optional() }));
+  const created = await createSupabaseProject(user.id, { name: row.name, organizationId: body.organizationId, region: body.region });
+  return c.json<SupabaseAccountProject>(created);
 });
 
 collabRoutes.post('/:id/supabase/migrations/apply', async (c) => {

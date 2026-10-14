@@ -219,7 +219,7 @@ describe('models that cannot finish the job', () => {
     expect(nvidia.prompts[0]).toContain('does not build');
     expect(message.status).toBe('done');
     expect(message.model).toBe('nvidia:nvidia/nemotron-3-super-120b-a12b');
-    expect(message.parts.some((p) => p.type === 'notice')).toBe(true);
+    expect(message.parts.some((p) => p.type === 'notice')).toBe(false);
     const builds = message.parts.filter((p): p is BuildPart => p.type === 'build');
     expect(builds.map((b) => b.ok)).toEqual([false, false, false, true]);
     expect(builds[2]).toMatchObject({ willRetry: true });

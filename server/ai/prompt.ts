@@ -123,17 +123,34 @@ const BACKEND_NONE = `
 # Backend
 This project has no backend connected. Keep data in the browser (React state, localStorage) and make the app fully usable that way. If the request truly needs accounts, a shared database or file storage, still build the working front end, and say in one sentence that connecting Supabase (the database button in the top bar) will let you add a real backend. Never invent API endpoints or credentials.`;
 
-const BACKEND_SUPABASE = `
-
-# Backend: Supabase is connected
-This project has a Supabase backend. Use it whenever the app needs accounts, data shared between users or devices, or file storage.
-- Import the ready client: \`import { supabase } from '@/integrations/supabase/client'\`. Never create another client, never edit that file, and never put any other key in the code (the service role key must never appear in the app).
+/** How the generated app talks to Supabase: the same rules whether the project was linked before or just now. */
+const SUPABASE_RULES = `- Import the ready client: \`import { supabase } from '@/integrations/supabase/client'\`. Never create another client, never edit that file, and never put any other key in the code (the service role key must never appear in the app).
 - Authentication: \`supabase.auth\` (signUp, signInWithPassword, signOut, getSession, onAuthStateChange). Keep the session in a small auth context and guard the screens that need it.
 - Data: \`supabase.from('table')\` with select / insert / update / delete. Always handle the \`error\` each call returns and show loading, empty and error states.
 - Storage: \`supabase.storage.from('bucket')\`.
 - Schema: every table, column, policy or bucket you rely on MUST be created by a SQL migration file that you write with <yasa-write> under \`supabase/migrations/\`, named \`YYYYMMDDHHMMSS_short_name.sql\` (use an increasing timestamp; never edit a migration that already exists, add a new one instead). Write idempotent SQL (\`create table if not exists\`; for policies \`drop policy if exists "name" on table;\` followed by \`create policy\` — Postgres has no \`create policy if not exists\`).
-- Security: enable row level security on every table and add explicit policies. Rows that belong to a user get a \`user_id uuid references auth.users not null default auth.uid()\` column and policies with \`auth.uid() = user_id\`. Only make data publicly readable when the app really needs that.
-- The migration does not run by itself: after writing one, tell the user in one sentence to apply it from the Supabase panel (the database button in the top bar). Code that reads a table before its migration is applied must fail gracefully with a readable message.`;
+- Security: enable row level security on every table and add explicit policies. Rows that belong to a user get a \`user_id uuid references auth.users not null default auth.uid()\` column and policies with \`auth.uid() = user_id\`. Only make data publicly readable when the app really needs that.`;
+
+const MIGRATIONS_MANUAL = `- The migration does not run by itself: after writing one, tell the user in one sentence to apply it from the Supabase panel (the database button in the top bar). Code that reads a table before its migration is applied must fail gracefully with a readable message.`;
+
+const MIGRATIONS_AUTO = `- Yasa runs new migrations on the database right after your reply. If one fails you get the error and fix the SQL. Code that reads a table must still fail gracefully with a readable message while it does not exist yet.`;
+
+const BACKEND_SUPABASE = (auto: boolean) => `
+
+# Backend: Supabase is connected
+This project has a Supabase backend. Use it whenever the app needs accounts, data shared between users or devices, or file storage.
+${SUPABASE_RULES}
+${auto ? MIGRATIONS_AUTO : MIGRATIONS_MANUAL}`;
+
+const BACKEND_OFFER = `
+
+# Backend: available on request
+The user has connected their Supabase account, but this app has no backend yet. Decide from the request:
+- If the app needs accounts, data that must survive a reload or be shared between devices or users, or file storage, write <yasa-backend /> on its own line once, before the files that use it. Yasa then creates a Supabase project for this app in the user's account and installs the client — you do not wait for it, just keep writing the app with Supabase as described below.
+- Otherwise do not write the tag: keep data in the browser.
+Rules once you asked for the backend:
+${SUPABASE_RULES}
+${MIGRATIONS_AUTO}`;
 
 const GENERATED_IMAGES = `
 
@@ -181,13 +198,16 @@ export function buildSystemPrompt(opts: {
   mode: 'build' | 'chat';
   customInstructions?: string;
   supabase?: boolean;
+  /** Overrides `supabase`: none, offer (account connected, nothing linked yet), manual or auto (Yasa runs the SQL). */
+  backend?: 'none' | 'offer' | 'manual' | 'auto';
   /** First request of a project that has not been asked anything yet: the AI may ask before it builds. */
   askFirst?: boolean;
   /** Image generation is available on this server. */
   images?: boolean;
 }): string {
   let prompt = coreSystemPrompt();
-  prompt += opts.supabase ? BACKEND_SUPABASE : BACKEND_NONE;
+  const backend = opts.backend ?? (opts.supabase ? 'manual' : 'none');
+  prompt += backend === 'auto' || backend === 'manual' ? BACKEND_SUPABASE(backend === 'auto') : backend === 'offer' && opts.mode === 'build' ? BACKEND_OFFER : BACKEND_NONE;
   if (opts.mode === 'build' && opts.images) prompt += GENERATED_IMAGES;
   if (opts.mode === 'build') prompt += opts.askFirst ? ASK_FIRST : ANSWERS_NOTE;
   if (opts.mode === 'chat') prompt += CHAT_MODE;
@@ -206,6 +226,9 @@ export const FAILED_ACTIONS_INTRO =
 
 export const UNUSED_FILES_INTRO =
   'The project builds, but the files listed in <unused_files> are not imported anywhere, so nothing in them appears in the app. If your answer stopped before the work was finished, finish it now: write the remaining files. Then import and render everything where it belongs (usually src/App.tsx or the router), or delete what is not needed. Do not rewrite files that are already complete, and do not repeat the explanation — one short sentence, then the tags.';
+
+export const FIX_MIGRATION_INTRO =
+  'The app builds, but a SQL migration you wrote failed on the database (see <failed_migration>). It was rolled back, so rewrite that same file with corrected SQL. Change only what is needed, and do not repeat the explanation — one short sentence, then the tags.';
 
 export const CONTINUE_INTRO =
   'Your previous response was cut off before it finished. The last incomplete action was discarded. Continue exactly where you left off: do not rewrite files that were already completed, and finish the remaining work.';

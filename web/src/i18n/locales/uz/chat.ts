@@ -63,6 +63,12 @@ export const chat = {
   },
   notice: {
     modelFallback: "{from} hozir javob bermayapti, ishni {to} davom ettirdi.",
+    backendCreating: "Supabase akkauntingizda bu ilova uchun baza yaratilmoqda…",
+    backendReady: "Baza tayyor: {name}",
+    backendFailed: "Bazani yaratib boʻlmadi: {error}",
+    migrationsWaiting: "Baza jadvallari tayyorlanmoqda…",
+    migrationsApplied: "Baza yangilandi ({count})",
+    migrationsFailed: "Bazani yangilab boʻlmadi: {error}",
   },
   actions: {
     summary: "Oʻzgartirildi: {files}",

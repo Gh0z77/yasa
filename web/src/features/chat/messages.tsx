@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react';
-import { History, MousePointerClick, Redo2, Shuffle, Square, Undo2, WandSparkles } from 'lucide-react';
+import { CircleAlert, CircleCheck, Database, History, Loader2, MousePointerClick, Redo2, Square, Undo2, WandSparkles } from 'lucide-react';
 import type { ActionPart, ChatMessage, MessagePart, PreviewError } from '@shared/types';
 import { LogoMark } from '@/components/common/Logo';
 import { Badge } from '@/components/ui/badge';
@@ -115,11 +115,28 @@ export function AssistantMessage(props: AssistantMessageProps) {
         body.push(<QuestionsCard key={index} items={part.items} active={isLast && !live} onAnswer={props.onAnswer} />);
         break;
       case 'notice':
+        // Which model answered is not the user's concern: older messages may still carry this part.
+        break;
+      case 'backend':
         body.push(
-          <p key={index} className="flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <Shuffle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            <span>{t('notice.modelFallback', { from: modelName(part.from), to: modelName(part.to) })}</span>
-          </p>,
+          <StatusLine key={index} state={part.status === 'creating' ? 'busy' : part.status === 'ready' ? 'ok' : 'error'}>
+            {part.status === 'creating'
+              ? t('notice.backendCreating')
+              : part.status === 'ready'
+                ? t('notice.backendReady', { name: part.name })
+                : t('notice.backendFailed', { error: part.error ?? '' })}
+          </StatusLine>,
+        );
+        break;
+      case 'migrations':
+        body.push(
+          <StatusLine key={index} state={part.waiting ? 'busy' : part.failed ? 'error' : 'ok'}>
+            {part.waiting
+              ? t('notice.migrationsWaiting')
+              : part.failed
+                ? t('notice.migrationsFailed', { error: part.failed.message })
+                : t('notice.migrationsApplied', { count: part.applied.length })}
+          </StatusLine>,
         );
         break;
       case 'error':
@@ -225,5 +242,22 @@ export function AssistantMessage(props: AssistantMessageProps) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** One line of backend progress in a reply (database created, tables set up). */
+function StatusLine({ state, children }: { state: 'busy' | 'ok' | 'error'; children: ReactNode }) {
+  const Icon = state === 'busy' ? Loader2 : state === 'ok' ? CircleCheck : CircleAlert;
+  return (
+    <p
+      className={cn(
+        'flex items-start gap-2 rounded-xl border px-3 py-2 text-xs',
+        state === 'error' ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-border bg-muted/40 text-muted-foreground',
+      )}
+    >
+      <Database className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 break-words">{children}</span>
+      <Icon className={cn('mt-0.5 size-3.5 shrink-0', state === 'busy' && 'animate-spin', state === 'ok' && 'text-success')} aria-hidden />
+    </p>
   );
 }

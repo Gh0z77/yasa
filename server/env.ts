@@ -43,6 +43,8 @@ const EnvSchema = z.object({
   SIGNUPS_ENABLED: boolish,
   TRUST_PROXY: boolish,
   CLERK_SECRET_KEY: z.string().optional(),
+  SUPABASE_OAUTH_CLIENT_ID: z.string().optional(),
+  SUPABASE_OAUTH_CLIENT_SECRET: z.string().optional(),
   CLERK_PUBLISHABLE_KEY: z.string().optional(),
   VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
 });
@@ -96,6 +98,8 @@ export interface Config {
   dailyMessageLimit: number;
   signupsEnabled: boolean;
   trustProxy: boolean;
+  /** Yasa's OAuth app at Supabase: lets users connect their Supabase account with one click. */
+  supabaseOAuth: { clientId: string; clientSecret: string } | null;
   /** Clerk as the identity provider; null = built-in email + password accounts. */
   clerk: { secretKey: string; publishableKey: string } | null;
 }
@@ -195,6 +199,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dailyMessageLimit: e.DAILY_MESSAGE_LIMIT,
     signupsEnabled: e.SIGNUPS_ENABLED ?? true,
     trustProxy: e.TRUST_PROXY ?? hosted,
+    supabaseOAuth:
+      !isTest && nonEmpty(e.SUPABASE_OAUTH_CLIENT_ID) && nonEmpty(e.SUPABASE_OAUTH_CLIENT_SECRET)
+        ? { clientId: nonEmpty(e.SUPABASE_OAUTH_CLIENT_ID)!, clientSecret: nonEmpty(e.SUPABASE_OAUTH_CLIENT_SECRET)! }
+        : null,
     clerk: clerkSecretKey && clerkPublishableKey ? { secretKey: clerkSecretKey, publishableKey: clerkPublishableKey } : null,
   };
 }

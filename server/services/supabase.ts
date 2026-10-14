@@ -11,6 +11,7 @@ import { logger } from '../lib/logger';
 import { nowIso } from '../lib/time';
 import { getFile, listFiles, upsertFile } from './files';
 import { findReachableTarget, parseDbUrl, runSql, type DbTarget } from './pg-runner';
+import { accountAccessToken } from './supabase-account';
 
 export const SUPABASE_CLIENT_PATH = 'src/integrations/supabase/client.ts';
 export const MIGRATIONS_DIR = 'supabase/migrations/';
@@ -32,6 +33,7 @@ interface ConnectionRow {
   project_ref: string;
   encrypted_access_token: string | null;
   encrypted_db_target: string | null;
+  account_user_id: string | null;
   created_at: string;
 }
 
@@ -60,9 +62,12 @@ function sqlRunner(row: ConnectionRow): SqlRunner | null {
       }
     };
   }
-  const token = row.encrypted_access_token ? decryptSecret(row.encrypted_access_token) : null;
-  if (!token) return null;
+  const saved = row.encrypted_access_token ? decryptSecret(row.encrypted_access_token) : null;
+  if (!saved && !row.account_user_id) return null;
   return async (sql) => {
+    // An account connected through OAuth hands out short-lived tokens: ask for a current one each time.
+    const token = saved ?? (row.account_user_id ? await accountAccessToken(row.account_user_id) : null);
+    if (!token) throw badRequest('Connect your Supabase account again.', { supabase: 'no_account' });
     const res = await call(`${MANAGEMENT_API}/v1/projects/${row.project_ref}/database/query`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -100,7 +105,7 @@ export function getSupabaseStatus(projectId: string, files: ProjectFile[] = list
     return { path: file.path, name: file.path.slice(MIGRATIONS_DIR.length), sql: file.content, applied: isApplied, appliedAt: isApplied ? record!.applied_at : null };
   });
   return {
-    connection: row ? { url: row.url, projectRef: row.project_ref, canRunSql: row.encrypted_access_token !== null || row.encrypted_db_target !== null, connectedAt: row.created_at } : null,
+    connection: row ? { url: row.url, projectRef: row.project_ref, canRunSql: row.encrypted_access_token !== null || row.encrypted_db_target !== null || row.account_user_id !== null, connectedAt: row.created_at } : null,
     migrations,
     pending: migrations.filter((m) => !m.applied).length,
   };
@@ -138,6 +143,11 @@ function installClient(projectId: string, url: string, anonKey: string): void {
   }
 }
 
+/** Every request to Supabase goes through here (tests replace the transport). */
+export async function supabaseCall(url: string, init: RequestInit): Promise<Response> {
+  return call(url, init);
+}
+
 async function call(url: string, init: RequestInit): Promise<Response> {
   try {
     return await http(url, { ...init, signal: AbortSignal.timeout(30_000) });
@@ -156,7 +166,11 @@ export interface ConnectInput {
 }
 
 /** Checks the credentials against Supabase, stores them and prepares the project to use them. */
-export async function connectSupabase(projectId: string, input: ConnectInput): Promise<SupabaseStatus> {
+/**
+ * `trusted`: the key was handed out by the Supabase Management API itself, so it is not tested against the project.
+ * `accountUserId`: SQL runs with that user's connected Supabase account.
+ */
+export async function connectSupabase(projectId: string, input: ConnectInput, options: { trusted?: boolean; accountUserId?: string } = {}): Promise<SupabaseStatus> {
   const url = input.url.trim().replace(/\/+$/, '').toLowerCase();
   const match = HOSTED_URL.exec(url);
   if (!match) throw badRequest('Use the project URL from Supabase, for example https://abcdefgh.supabase.co', { supabase: 'bad_url' });
@@ -164,10 +178,10 @@ export async function connectSupabase(projectId: string, input: ConnectInput): P
   const anonKey = input.anonKey.trim();
   const accessToken = input.accessToken?.trim() || null;
 
-  const settings = await call(`${url}/auth/v1/settings`, { headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` } });
-  if (!settings.ok) throw badRequest('Supabase rejected this URL and key. Copy both from Project Settings → API.', { supabase: 'bad_key' });
+  const settings = options.trusted ? null : await call(`${url}/auth/v1/settings`, { headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` } });
+  if (settings && !settings.ok) throw badRequest('Supabase rejected this URL and key. Copy both from Project Settings → API.', { supabase: 'bad_key' });
 
-  if (accessToken) {
+  if (accessToken && !options.trusted) {
     const project = await call(`${MANAGEMENT_API}/v1/projects/${projectRef}`, { headers: { authorization: `Bearer ${accessToken}` } });
     if (!project.ok) {
       throw badRequest('The access token cannot manage this Supabase project. Check the token, or leave the field empty.', { supabase: 'bad_token' });
@@ -180,15 +194,17 @@ export async function connectSupabase(projectId: string, input: ConnectInput): P
 
   const now = nowIso();
   run(
-    `INSERT INTO project_supabase (project_id, url, anon_key, project_ref, encrypted_access_token, encrypted_db_target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO project_supabase (project_id, url, anon_key, project_ref, encrypted_access_token, encrypted_db_target, account_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(project_id) DO UPDATE SET url = excluded.url, anon_key = excluded.anon_key, project_ref = excluded.project_ref,
-       encrypted_access_token = excluded.encrypted_access_token, encrypted_db_target = excluded.encrypted_db_target, created_at = excluded.created_at`,
+       encrypted_access_token = excluded.encrypted_access_token, encrypted_db_target = excluded.encrypted_db_target,
+       account_user_id = excluded.account_user_id, created_at = excluded.created_at`,
     projectId,
     url,
     anonKey,
     projectRef,
     accessToken ? encryptSecret(accessToken) : null,
     dbTarget ? encryptSecret(JSON.stringify(dbTarget)) : null,
+    options.accountUserId ?? null,
     now,
   );
   installClient(projectId, url, anonKey);

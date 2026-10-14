@@ -7,6 +7,7 @@ export const settings = {
     ai: 'AI & API keys',
     usage: 'Usage',
     appearance: 'Appearance',
+    integrations: 'Integrations',
   },
   profile: {
     title: 'Profile',

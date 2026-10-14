@@ -16,7 +16,7 @@ Kod bir xil: server `DATABASE_URL` ni koʻrsa Postgres’ga, `VERCEL` ni koʻrsa
 2. Paroldagi maxsus belgilarni URL uchun kodlang (`$` → `%24`, `@` → `%40`, `#` → `%23`).
 3. Yasa oʻz jadvallarini alohida `yasa` sxemasida yaratadi (birinchi soʻrovda, avtomatik) — `public` sxemadagi narsalarga tegmaydi.
 
-Baza va funksiya bir hududda boʻlishi shart: har bir soʻrov bazaga bir necha marta murojaat qiladi. Supabase loyihasi Tokioda (`ap-northeast-1`) boʻlsa, Vercel’da **Settings → Functions → Function Region** ni **Tokyo (hnd1)** qiling.
+Baza va funksiya bir hududda boʻlishi shart: har bir soʻrov bazaga bir necha marta murojaat qiladi, boshqa qitʼadagi baza sahifalarni soniyalab sekinlashtiradi. `vercel.json` funksiyani **Tokyo (`hnd1`)** ga qoʻyadi — Supabase loyihangiz Tokioda (`ap-northeast-1`) boʻlgani uchun. Baza boshqa hududda boʻlsa, `vercel.json` dagi `regions` ni oʻsha hududga yaqiniga oʻzgartiring (masalan Frankfurt uchun `fra1`).
 
 ## 2. Vercel loyihasi
 
@@ -33,6 +33,7 @@ Baza va funksiya bir hududda boʻlishi shart: har bir soʻrov bazaga bir necha m
 | `SANDBOX_MODE` | `path` |
 | `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GEMINI_API_KEY` | AI kalitlari (kamida bittasi) |
 | `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Clerk kalitlari (boʻlmasa — ichki email + parol hisoblari) |
+| `SUPABASE_OAUTH_CLIENT_ID`, `SUPABASE_OAUTH_CLIENT_SECRET` | Yasa’ning Supabase OAuth ilovasi (pastda) — foydalanuvchilar Supabase’ni bir bosishda ulashi uchun |
 
 `APP_SECRET` uchun tasodifiy satr:
 
@@ -42,6 +43,26 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 4. **Deploy**. Build `npm run build:vercel` ni ishga tushiradi: veb-ilova (`vite build`) va butun server bitta funksiya sifatida `.vercel/output` ga yigʻiladi.
 5. Clerk ishlatilsa, Clerk boshqaruv panelida Vercel manzilini ruxsat etilgan manzillarga qoʻshing (production instansiyasi oʻz domenini talab qiladi; `*.vercel.app` da development kalitlari ishlaydi).
+
+## Foydalanuvchilarning oʻz Supabase akkaunti
+
+Yaratilgan ilovalarning bazasi foydalanuvchining oʻz Supabase akkauntida turadi. Foydalanuvchi hech qanday kalit yoki token kiritmaydi: **Supabase bilan ulash** tugmasini bosadi, Supabase sahifasida Yasa’ga ruxsat beradi va qaytib keladi.
+
+Buning uchun sayt egasi Yasa’ni Supabase’da **bir marta** roʻyxatdan oʻtkazadi:
+
+1. supabase.com → oʻz tashkilotingiz → **Settings → OAuth Apps → Add application**.
+2. Nom: `Yasa`, sayt manzili: asosiy manzil (masalan `https://yasa.vercel.app`), **Redirect URL**: `https://yasa.vercel.app/api/supabase/oauth/callback` (asosiy manzil + `/api/supabase/oauth/callback`).
+3. Ruxsatlar (scopes): Organizations — read, Projects — read va write, Database — write, Secrets — read (loyiha kalitlarini olish uchun). Bular boʻlmasa, Yasa loyiha yarata olmaydi yoki jadvallarni qoʻllay olmaydi.
+4. Berilgan **Client ID** va **Client Secret** ni Vercel’da `SUPABASE_OAUTH_CLIENT_ID` va `SUPABASE_OAUTH_CLIENT_SECRET` ga yozing va qayta deploy qiling.
+
+Keyin:
+
+- Foydalanuvchi **Sozlamalar → Integratsiyalar** da yoki loyihaning Cloud oynasida **Supabase bilan ulash** ni bosadi.
+- Ilovaga hisoblar yoki saqlanadigan maʼlumot kerak boʻlsa, AI `<yasa-backend />` yozadi: Yasa foydalanuvchi akkauntida yangi Supabase loyihasi ochadi (Frankfurt, `eu-central-1`), kalitlarni oʻrnatadi va AI yozgan migratsiyalarni bazaga oʻzi qoʻllaydi. SQL xato boʻlsa, xato AI’ga qaytariladi va u tuzatadi.
+- Cloud oynasida mavjud Supabase loyihasini tanlash yoki yangisini yaratish ham mumkin.
+- Ulanish tokeni bir soatlik; Yasa uni oʻzi yangilab turadi. Foydalanuvchi Supabase’da ruxsatni bekor qilsa, ulanish oʻchadi.
+
+Supabase’ning bepul tarifi bir tashkilotda 2 ta faol loyihaga ruxsat beradi; limitga yetilsa, Yasa buni aytadi va ilova bazasiz (brauzerda saqlab) quriladi.
 
 ## Cheklovlar
 

@@ -199,4 +199,24 @@ CREATE INDEX idx_domains_project ON project_domains(project_id);
   `
 ALTER TABLE project_supabase ADD COLUMN encrypted_db_target TEXT;
 `,
+  // 6: models that just failed, shared by every server instance; a user's Supabase account.
+  `
+CREATE TABLE model_health (
+  model_id TEXT PRIMARY KEY,
+  until TEXT NOT NULL,
+  kind TEXT NOT NULL
+);
+CREATE TABLE supabase_accounts (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  encrypted_token TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+`,
+  // 7: accounts connected through Supabase OAuth (short-lived access token + refresh token); projects that run
+  // their SQL with the owner's connected account.
+  `
+ALTER TABLE supabase_accounts ADD COLUMN encrypted_refresh_token TEXT;
+ALTER TABLE supabase_accounts ADD COLUMN expires_at TEXT;
+ALTER TABLE project_supabase ADD COLUMN account_user_id TEXT;
+`,
 ];

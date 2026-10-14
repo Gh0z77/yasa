@@ -41,6 +41,7 @@ function toProviderError(err: unknown): ProviderError {
     const kind = busy && err.status !== 401 && err.status !== 403 && err.status !== 429 ? 'overloaded' : kindFromStatus(err.status);
     if (kind === 'overloaded') return new ProviderError('overloaded', 'The AI provider is overloaded right now. Try again in a moment.');
     if (kind === 'auth') return new ProviderError('auth', 'The API key was rejected by the provider. Check the key in Settings.');
+    if (err.status === 402) return new ProviderError('rate_limit', 'This model needs credits on the provider account.');
     if (kind === 'rate_limit') return new ProviderError('rate_limit', 'Provider rate limit or quota reached. Try again later.');
     return new ProviderError(kind, err.message || 'Provider request failed');
   }

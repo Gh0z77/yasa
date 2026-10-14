@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { LIMITS } from '../../shared/constants';
 import type {
+  SupabaseAccount,
+  SupabaseConnectStart,
   ApiKeyInfo,
   ApiKeyTestResponse,
   ApiKeysResponse,
@@ -19,6 +21,9 @@ import { assertSafeBaseUrl } from '../lib/net';
 import { parseJson, zModelId } from '../lib/validate';
 import { clearSessionCookie, requireUser } from '../middleware/auth';
 import { deleteApiKey, getUserApiKey, listApiKeys, setApiKey } from '../services/apiKeys';
+import { setCookie } from 'hono/cookie';
+import { connectSupabaseAccount, disconnectSupabaseAccount, getSupabaseAccount, startSupabaseOAuth, supabaseOAuthEnabled } from '../services/supabase-account';
+import { getConfig } from '../env';
 import { clerkEnabled, deleteClerkUser } from '../services/clerk';
 import { deleteUserSessions } from '../services/sessions';
 import { getUsageSummary } from '../services/usage';
@@ -50,6 +55,9 @@ function providerParam(value: string | undefined): KeyProvider {
   if (!value || !KEY_PROVIDERS.includes(value as KeyProvider)) throw notFound('Unknown provider');
   return value as KeyProvider;
 }
+
+/** Holds the sealed OAuth ticket between the consent page and the callback. */
+export const SUPABASE_OAUTH_COOKIE = 'yasa_sb_oauth';
 
 export const meRoutes = new Hono<AppEnv>();
 
@@ -97,6 +105,39 @@ meRoutes.delete('/', async (c) => {
 meRoutes.get('/usage', (c) => {
   const user = requireUser(c);
   return c.json<UsageSummary>(getUsageSummary(user.id));
+});
+
+// The user's own Supabase account: connected once, then every project can get a backend from it.
+meRoutes.get('/supabase', async (c) => {
+  const user = requireUser(c);
+  return c.json<SupabaseAccount>(await getSupabaseAccount(user.id));
+});
+
+meRoutes.put('/supabase', async (c) => {
+  const user = requireUser(c);
+  const body = await parseJson(c, z.object({ accessToken: z.string().trim().min(20).max(400) }));
+  return c.json<SupabaseAccount>(await connectSupabaseAccount(user.id, body.accessToken));
+});
+
+meRoutes.delete('/supabase', (c) => {
+  const user = requireUser(c);
+  disconnectSupabaseAccount(user.id);
+  return c.json<SupabaseAccount>({ connected: false, canConnect: supabaseOAuthEnabled(), organizations: [], projects: [] });
+});
+
+/** One-click connection: the browser goes to Supabase's consent page with this URL and comes back to the callback. */
+meRoutes.post('/supabase/connect', async (c) => {
+  const user = requireUser(c);
+  const body = await parseJson(c, z.object({ returnTo: z.string().max(500).optional() }));
+  const { url, ticket } = startSupabaseOAuth(user.id, body.returnTo);
+  setCookie(c, SUPABASE_OAUTH_COOKIE, ticket, {
+    path: '/api/supabase/oauth',
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: getConfig().appUrl.startsWith('https://'),
+    maxAge: 600,
+  });
+  return c.json<SupabaseConnectStart>({ url });
 });
 
 meRoutes.get('/api-keys', (c) => {

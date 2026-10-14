@@ -62,6 +62,12 @@ export const chat = {
   },
   notice: {
     modelFallback: 'Модель {from} сейчас недоступна, работу продолжила {to}.',
+    backendCreating: 'Создаём базу данных для этого приложения в вашем аккаунте Supabase…',
+    backendReady: 'База данных готова: {name}',
+    backendFailed: 'Не удалось создать базу данных: {error}',
+    migrationsWaiting: 'Настраиваем таблицы базы данных…',
+    migrationsApplied: 'База данных обновлена ({count})',
+    migrationsFailed: 'Не удалось обновить базу данных: {error}',
   },
   actions: {
     summary: 'Изменено: {files}',

@@ -21,6 +21,7 @@ import { modelRoutes } from './routes/models';
 import { previewRoutes, slugRoutes } from './routes/preview';
 import { projectRoutes } from './routes/projects';
 import { uploadRoutes } from './routes/uploads';
+import { supabaseOAuthRoutes } from './routes/supabase-oauth';
 import { versionRoutes } from './routes/versions';
 import type { AppEnv } from './types';
 
@@ -64,6 +65,7 @@ export function createApp(): Hono<AppEnv> {
   app.route('/api/projects', chatRoutes);
   app.route('/api/projects', previewRoutes);
   app.route('/api/uploads', uploadRoutes);
+  app.route('/api/supabase/oauth', supabaseOAuthRoutes);
   app.route('/api/community', communityRoutes);
   app.route('/api', slugRoutes);
 

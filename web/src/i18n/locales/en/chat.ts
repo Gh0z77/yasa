@@ -59,6 +59,12 @@ export const chat = {
   },
   notice: {
     modelFallback: '{from} is unavailable right now, so {to} took over.',
+    backendCreating: 'Creating a database for this app in your Supabase account…',
+    backendReady: 'Database ready: {name}',
+    backendFailed: 'The database could not be created: {error}',
+    migrationsWaiting: 'Setting up the database tables…',
+    migrationsApplied: 'Database updated ({count})',
+    migrationsFailed: 'Database update failed: {error}',
   },
   actions: {
     summary: 'Changed {files}',

@@ -323,8 +323,12 @@ export interface ErrorPart { type: 'error'; code: ChatErrorCode; message: string
 
 /** The requested model was unavailable and the turn continued on another one. */
 export interface NoticePart { type: 'notice'; code: 'model_fallback'; from: ModelId; to: ModelId }
+/** The AI asked for a backend: Yasa creates a Supabase project in the user's account and links it. */
+export interface BackendPart { type: 'backend'; status: 'creating' | 'ready' | 'failed'; name: string; ref: string | null; error?: string }
+/** Migrations Yasa ran on the linked Supabase project after the reply. */
+export interface MigrationsPart { type: 'migrations'; applied: string[]; failed: { path: string; message: string } | null; waiting?: boolean }
 
-export type MessagePart = TextPart | ThinkingPart | ActionPart | BuildPart | SuggestionsPart | ErrorPart | NoticePart | QuestionsPart;
+export type MessagePart = TextPart | ThinkingPart | ActionPart | BuildPart | SuggestionsPart | ErrorPart | NoticePart | QuestionsPart | BackendPart | MigrationsPart;
 
 export interface Attachment {
   id: string;
@@ -523,6 +527,14 @@ export interface SupabaseConnectRequest {
   /** Database connection string (URI) from Supabase: a second way to let Yasa run migrations. */
   dbUrl?: string | null;
 }
+export interface SupabaseOrganization { id: string; name: string }
+export interface SupabaseAccountProject { ref: string; name: string; region: string; status: string; organizationId: string; ready: boolean }
+/** The user's own Supabase account (connected with a personal access token). */
+/** The user's own Supabase account. `canConnect`: this server can start the one-click (OAuth) connection. */
+export interface SupabaseAccount { connected: boolean; canConnect: boolean; organizations: SupabaseOrganization[]; projects: SupabaseAccountProject[] }
+export interface SupabaseConnectStart { url: string }
+export interface SupabaseAccountConnectRequest { accessToken: string }
+export interface SupabaseCreateProjectRequest { name: string; organizationId?: string; region?: string }
 export interface SupabaseApplyResponse { status: SupabaseStatus; applied: string[]; failed: { path: string; message: string } | null }
 /** The "supabase" field in the details of an error from the Supabase endpoints. */
 export type SupabaseFailure =
@@ -534,7 +546,11 @@ export type SupabaseFailure =
   | 'no_token'
   | 'bad_db_url'
   | 'bad_db_password'
-  | 'db_unreachable';
+  | 'db_unreachable'
+  | 'bad_account_token'
+  | 'no_account'
+  | 'project_limit'
+  | 'not_ready';
 
 export interface ProjectDomain {
   domain: string;

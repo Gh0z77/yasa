@@ -1,6 +1,6 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpRight, Check, Copy, Database } from 'lucide-react';
+import { ArrowUpRight, Check, ChevronDown, Copy, Database, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Project, SupabaseFailure, SupabaseMigration, SupabaseStatus } from '@shared/types';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SupabaseAccountForm, supabaseAccountKey, useSupabaseAccount, useSupabaseError, useSupabaseReturn } from './SupabaseAccount';
 import { useWorkspace } from '@/features/workspace/store';
 import { useErrorMessage, useT } from '@/i18n';
 import { api, isApiError } from '@/lib/api';
@@ -28,6 +29,10 @@ export function SupabaseDialog({ project }: { project: Project }) {
   const uid = useId();
   const open = useWorkspace((s) => s.panels.supabase);
   const setPanel = useWorkspace((s) => s.setPanel);
+  const justConnected = useSupabaseReturn();
+  useEffect(() => {
+    if (justConnected) setPanel('supabase', true);
+  }, [justConnected, setPanel]);
 
   const status = useQuery({
     queryKey: supabaseKey(project.id),
@@ -124,6 +129,14 @@ export function SupabaseDialog({ project }: { project: Project }) {
             {errorMessage(status.error)}
           </p>
         ) : !connection ? (
+          <ConnectChoices
+            projectId={project.id}
+            onLinked={(next) => {
+              store(next);
+              void reloadProject();
+              toast.success(t('supabase.connected'));
+            }}
+            manual={
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor={`${uid}-url`}>{t('supabase.urlLabel')}</Label>
@@ -159,6 +172,8 @@ export function SupabaseDialog({ project }: { project: Project }) {
               {t('supabase.connect')}
             </Button>
           </form>
+            }
+          />
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3 text-sm">
@@ -264,5 +279,133 @@ function MigrationRow({ migration, manual, busy, onMark }: { migration: Supabase
         </>
       )}
     </li>
+  );
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How an app gets its database: from the user's connected Supabase account (pick a project or create one), after
+ * connecting that account, or — tucked away — by pasting a URL and key.
+ */
+function ConnectChoices({ projectId, onLinked, manual }: { projectId: string; onLinked(status: SupabaseStatus): void; manual: ReactNode }) {
+  const t = useT('shell');
+  const qc = useQueryClient();
+  const explain = useSupabaseError();
+  const account = useSupabaseAccount();
+  const [ref, setRef] = useState('');
+  const [showManual, setShowManual] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const link = useMutation({
+    mutationFn: (target: string) => api.supabase.link(projectId, target),
+    onSuccess: (status) => {
+      setError(null);
+      onLinked(status);
+    },
+    onError: (err) => setError(explain(err)),
+  });
+
+  // A new project takes a minute or two to start: keep trying to link it until it answers.
+  const create = useMutation({
+    mutationFn: async () => {
+      const created = await api.supabase.create(projectId);
+      void qc.invalidateQueries({ queryKey: supabaseAccountKey });
+      for (let attempt = 0; attempt < 60 && alive.current; attempt++) {
+        try {
+          return await api.supabase.link(projectId, created.ref);
+        } catch (err) {
+          const code = isApiError(err) ? (err.details as { supabase?: SupabaseFailure } | null)?.supabase : undefined;
+          if (code !== 'not_ready') throw err;
+          await sleep(5000);
+        }
+      }
+      throw new Error(t('supabase.errors.not_ready'));
+    },
+    onSuccess: (status) => {
+      setError(null);
+      onLinked(status);
+    },
+    onError: (err) => setError(explain(err)),
+  });
+
+  const manualToggle = (
+    <div className="border-t border-border pt-3">
+      <button
+        type="button"
+        onClick={() => setShowManual((v) => !v)}
+        aria-expanded={showManual}
+        className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/45"
+      >
+        <ChevronDown className={`size-3.5 transition-transform ${showManual ? 'rotate-180' : ''}`} aria-hidden />
+        {t('supabase.manualToggle')}
+      </button>
+      {showManual ? <div className="mt-4">{manual}</div> : null}
+    </div>
+  );
+
+  if (account.isPending) return <Skeleton className="h-24 w-full" />;
+
+  if (!account.data?.connected) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <p className="text-[13px] font-medium">{t('supabase.accountTitle')}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('supabase.accountDescription')}</p>
+        </div>
+        <SupabaseAccountForm />
+        {manualToggle}
+      </div>
+    );
+  }
+
+  const projects = account.data.projects;
+  const busy = link.isPending || create.isPending;
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[13px] font-medium">{t('supabase.pickTitle')}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('supabase.pickHint')}</p>
+      </div>
+      {projects.length > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <select
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            aria-label={t('supabase.pickPlaceholder')}
+            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+          >
+            <option value="">{t('supabase.pickPlaceholder')}</option>
+            {projects.map((p) => (
+              <option key={p.ref} value={p.ref}>
+                {p.name} · {p.region}
+                {p.ready ? '' : ` (${t('supabase.starting')})`}
+              </option>
+            ))}
+          </select>
+          <Button type="button" loading={link.isPending} disabled={!ref || busy} onClick={() => link.mutate(ref)}>
+            {t('supabase.link')}
+          </Button>
+        </div>
+      ) : null}
+      <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => create.mutate()}>
+        {create.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus className="size-4" aria-hidden />}
+        {t('supabase.create')}
+      </Button>
+      {create.isPending ? <p className="text-xs text-muted-foreground">{t('supabase.creating')}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {manualToggle}
+    </div>
   );
 }

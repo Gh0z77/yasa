@@ -1,20 +1,22 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
-import { Gauge, KeyRound, Palette, User, type LucideIcon } from 'lucide-react';
+import { Gauge, KeyRound, Palette, Plug, User, type LucideIcon } from 'lucide-react';
 import { PageHeading, PageShell } from '@/components/common/PageShell';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AiSection } from '@/features/settings/AiSection';
 import { AppearanceSection } from '@/features/settings/AppearanceSection';
+import { IntegrationsSection } from '@/features/settings/IntegrationsSection';
 import { ProfileSection } from '@/features/settings/ProfileSection';
 import { UsageSection } from '@/features/settings/UsageSection';
 import { useT } from '@/i18n';
 
-const TABS = ['profile', 'ai', 'usage', 'appearance'] as const;
+const TABS = ['profile', 'ai', 'integrations', 'usage', 'appearance'] as const;
 type SettingsTab = (typeof TABS)[number];
 
 const TAB_ICONS: Record<SettingsTab, LucideIcon> = {
   profile: User,
   ai: KeyRound,
+  integrations: Plug,
   usage: Gauge,
   appearance: Palette,
 };
@@ -66,6 +68,9 @@ export default function Settings() {
           </TabsContent>
           <TabsContent value="ai" className="animate-fade-in outline-none">
             <AiSection />
+          </TabsContent>
+          <TabsContent value="integrations" className="animate-fade-in outline-none">
+            <IntegrationsSection />
           </TabsContent>
           <TabsContent value="usage" className="animate-fade-in outline-none">
             <UsageSection onConnectKey={() => selectTab('ai')} />

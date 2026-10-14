@@ -10,6 +10,7 @@ export const settings = {
     ai: 'ИИ и API-ключи',
     usage: 'Расход',
     appearance: 'Оформление',
+    integrations: 'Интеграции',
   },
   profile: {
     title: 'Профиль',

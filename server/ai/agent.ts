@@ -31,11 +31,13 @@ import {
   type ContextImage,
 } from './context';
 import { ProtocolParser, type ParsedAction } from './parser';
-import { buildSystemPrompt, CONTINUE_INTRO, FAILED_ACTIONS_INTRO, FIX_BUILD_INTRO, UNUSED_FILES_INTRO } from './prompt';
+import { buildSystemPrompt, CONTINUE_INTRO, FAILED_ACTIONS_INTRO, FIX_BUILD_INTRO, FIX_MIGRATION_INTRO, UNUSED_FILES_INTRO } from './prompt';
 import { declareDependencies, fixMigrationSql, isMigrationPath, restoreTree, unusedFileError, unusedFiles } from './tidy';
 import { generateImage, imageGenerationEnabled, normalizeAspect } from '../services/imagegen';
-import { isSupabaseConnected } from '../services/supabase';
-import { markAvailable, markUnavailable } from './health';
+import { applyPendingMigrations, getSupabaseStatus, SUPABASE_CLIENT_PATH } from '../services/supabase';
+import { hasSupabaseAccount, provisionBackend, waitUntilReady } from '../services/supabase-account';
+import { getFile } from '../services/files';
+import { markAvailable, markUnavailable, NO_CREDITS_COOLDOWN_MS } from './health';
 import { ProviderError, type ProviderMessage, type ProviderStopReason } from './providers/types';
 import type { ResolvedModel } from './registry';
 
@@ -84,6 +86,11 @@ const MAX_IMAGES_PER_TURN = 6;
 const IMAGE_PATH = /^public\/[\w./-]+\.(?:jpe?g|png|webp)$/i;
 /** How many times a turn resumes after its stream is cut off mid-answer. */
 const MAX_RESUMES = 3;
+
+/** A model that needs credits stays out much longer than one that is merely busy. */
+function cooldownFor(err: ProviderError): number | undefined {
+  return /credits|payment required|insufficient (?:credit|balance|funds)/i.test(err.message) ? NO_CREDITS_COOLDOWN_MS : undefined;
+}
 
 function treeToFiles(tree: WorkingTree): ProjectFile[] {
   const now = new Date().toISOString();
@@ -188,7 +195,11 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
     createVersion(project.id, { summary: 'Manual edits', source: 'manual' });
   }
 
-  const system = buildSystemPrompt({ mode, customInstructions: project.custom_instructions, supabase: isSupabaseConnected(project.id), askFirst, images: imageGenerationEnabled() });
+  // The backend: linked already (Yasa may run its SQL or not), or offered because the user's Supabase account is connected.
+  const supabaseAtStart = getSupabaseStatus(project.id).connection;
+  const backendOffered = mode === 'build' && !supabaseAtStart && hasSupabaseAccount(user.id);
+  const backend = supabaseAtStart ? (supabaseAtStart.canRunSql ? 'auto' : 'manual') : backendOffered ? 'offer' : 'none';
+  const system = buildSystemPrompt({ mode, customInstructions: project.custom_instructions, backend, askFirst, images: imageGenerationEnabled() });
   const baseMessages = buildMessages({
     tree,
     history,
@@ -203,9 +214,64 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
     timeline,
   });
 
-  if (ctx.skippedModel && ctx.skippedModel !== active.modelId) {
-    addPart({ type: 'notice', code: 'model_fallback', from: ctx.skippedModel, to: active.modelId });
-  }
+
+  // --- backend on request ------------------------------------------------------------
+  // `<yasa-backend />` creates a Supabase project in the user's account while the model keeps writing; the build
+  // waits for it, so the client file exists by the time the code that imports it is bundled.
+  let backendWork: Promise<void> | null = null;
+  let backendRef: string | null = null;
+  let backendError: string | null = null;
+  const startBackend = () => {
+    if (!backendOffered || backendWork) return;
+    const name = getProjectRow(project.id)?.name ?? project.name;
+    const index = addPart({ type: 'backend', status: 'creating', name, ref: null });
+    backendWork = provisionBackend(user.id, project.id, name, 90_000)
+      .then((created) => {
+        backendRef = created.ref;
+        // The client and the package.json dependency were written to the project: the working tree needs them too.
+        const changes: FileChange[] = [];
+        for (const path of [SUPABASE_CLIENT_PATH, 'package.json']) {
+          const file = getFile(project.id, path);
+          if (!file) continue;
+          tree.set(path, { content: file.content, encoding: file.encoding });
+          changes.push({ path, kind: 'upsert', content: file.content, encoding: file.encoding });
+        }
+        if (changes.length > 0) emit({ type: 'files_changed', changes });
+        updatePart(index, { type: 'backend', status: 'ready', name: created.name, ref: created.ref });
+        persist(true);
+      })
+      .catch((err) => {
+        backendError = err instanceof Error ? err.message : String(err);
+        logger.warn('Backend could not be created', { projectId: project.id, error: backendError });
+        updatePart(index, { type: 'backend', status: 'failed', name, ref: null, error: backendError });
+        persist(true);
+      });
+  };
+
+  /** Runs the migrations the reply wrote, when Yasa can run SQL on the linked project. */
+  const runMigrations = async (): Promise<{ path: string; message: string } | null> => {
+    const status = getSupabaseStatus(project.id);
+    if (!status.connection?.canRunSql || !status.migrations.some((m) => !m.applied)) return null;
+    const index = addPart({ type: 'migrations', applied: [], failed: null, waiting: true });
+    try {
+      // A project created moments ago is still starting its database.
+      if (backendRef) {
+        const budget = config.generationTimeLimitMs > 0 ? config.generationTimeLimitMs - (Date.now() - startedAt) - 20_000 : 180_000;
+        if (!(await waitUntilReady(user.id, backendRef, Math.max(0, budget)))) {
+          updatePart(index, { type: 'migrations', applied: [], failed: { path: '', message: 'The database is still starting. The migrations will run on the next message, or from the Cloud tab.' } });
+          return null;
+        }
+      }
+      const result = await applyPendingMigrations(project.id);
+      updatePart(index, { type: 'migrations', applied: result.applied, failed: result.failed });
+      persist(true);
+      return result.failed;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      updatePart(index, { type: 'migrations', applied: [], failed: { path: '', message } });
+      return null;
+    }
+  };
 
   // --- applying actions -----------------------------------------------------------
   const copyReferencedUploads = (content: string): FileChange[] => {
@@ -290,10 +356,10 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
     return changes.length > 0;
   };
 
-  /** Hands the rest of the turn to another model and says so in the chat. */
+  /** Hands the rest of the turn to another model. Quietly: to the user it is simply the AI answering. */
   const switchTo = (next: ResolvedModel) => {
     endThinking();
-    addPart({ type: 'notice', code: 'model_fallback', from: active.modelId, to: next.modelId });
+    logger.info('Switching model', { projectId: project.id, from: active.modelId, to: next.modelId });
     active = next;
     ctx.assistantMessage.model = next.modelId;
     updateMessage(ctx.assistantMessage.id, { model: next.modelId, parts });
@@ -332,6 +398,9 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
         onActionEnd: (action) => {
           if (mode === 'chat') return;
           if (handleActionEnd(action, outcomes)) changed = true;
+        },
+        onBackend: () => {
+          if (mode === 'build') startBackend();
         },
         onProject: (meta) => {
           if (mode === 'chat' || !isFirstAiTurn) return;
@@ -416,9 +485,10 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
         const transient = err instanceof ProviderError && ['network', 'overloaded', 'rate_limit'].includes(err.kind);
         // Nothing of this pass has reached the user yet, so another model can take over without leaving traces:
         // used-up quota, an overloaded or silent provider and a rejected key all move on to the next one.
-        const canSwitch = err instanceof ProviderError && (transient || err.kind === 'auth') && rawText === '' && !signal.aborted;
+        // A rejected request (a retired model, a context it cannot take) is no reason to stop either.
+        const canSwitch = err instanceof ProviderError && rawText === '' && !signal.aborted;
         const next = canSwitch ? fallbacks.shift() : undefined;
-        if (err instanceof ProviderError && rawText === '') markUnavailable(active.modelId, err.kind);
+        if (err instanceof ProviderError && rawText === '') markUnavailable(active.modelId, err.kind, cooldownFor(err));
         if (next) {
           logger.warn('Provider request failed, switching model', { projectId: project.id, from: active.modelId, to: next.modelId, error: err });
           switchTo(next);
@@ -485,6 +555,7 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
       sections.push(FAILED_ACTIONS_INTRO, `<failed_actions>\n${lines.join('\n')}\n</failed_actions>`);
     }
     if (paths.size) sections.push(`Current content of the affected files:\n${renderFilesFull(tree, [...paths].slice(0, 12))}`);
+    if (backendError) sections.push(`Note: the Supabase backend could not be created (${backendError}). Do not import '@/integrations/supabase/client'; keep the data in the browser instead.`);
     return sections.join('\n\n');
   };
 
@@ -515,7 +586,7 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
     for (let pass = 0; pass < 8; pass++) {
       const result = await streamPass(messages, pass);
       // Every picture this pass asked for is in the project (or has failed) before the build is checked.
-      await Promise.allSettled(pendingImages);
+      await Promise.allSettled(backendWork ? [...pendingImages, backendWork] : pendingImages);
       if (result.changed) anyChange = true;
       rawSoFar.push(result.rawText);
 
@@ -608,6 +679,16 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
         ];
         continue;
       }
+      // The app builds: run the SQL it wrote. A failing migration goes back to the model like a build error.
+      if (summary.ok && !failed && !signal.aborted && mode === 'build') {
+        const sqlFailure = await runMigrations();
+        if (sqlFailure && attempts < LIMITS.autoFixAttempts) {
+          attempts++;
+          const fix = [FIX_MIGRATION_INTRO, `<failed_migration path="${sqlFailure.path}">\n${sqlFailure.message}\n</failed_migration>`, `Current content:\n${renderFilesFull(tree, [sqlFailure.path])}`].join('\n\n');
+          messages = [...baseMessages, assistantTurn(), { role: 'user', content: [{ type: 'text', text: fix }] }];
+          continue;
+        }
+      }
       if (!failed && !summary.ok && lastGood && !signal.aborted) {
         // The repairs made an app that worked worse: the user gets the last state that built, not a broken one.
         const changes = restoreTree(tree, lastGood);
@@ -648,7 +729,7 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
 
   // --- finalize -----------------------------------------------------------------------------
   try {
-    await Promise.allSettled(pendingImages);
+    await Promise.allSettled(backendWork ? [...pendingImages, backendWork] : pendingImages);
     endThinking();
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];

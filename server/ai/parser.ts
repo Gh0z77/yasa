@@ -46,6 +46,8 @@ export interface ParserHandlers {
   onTitle(title: string): void;
   onSuggestions(items: string[]): void;
   onQuestions(items: ChatQuestion[]): void;
+  /** `<yasa-backend />`: the app needs a backend (Supabase). */
+  onBackend?(): void;
 }
 
 const HEX_COLOR = /#(?:[0-9a-f]{3}|[0-9a-f]{6})\b/gi;
@@ -96,7 +98,7 @@ const TAG_PREFIX = '<yasa-';
 /** Closing tags outside a block ("</yasa-assistant>") are noise some models add around their answer. */
 const CLOSE_PREFIX = '</yasa-';
 const MAX_OPEN_TAG = 1200;
-const VOID_TAGS = new Set(['delete', 'rename', 'dependency', 'project', 'image']);
+const VOID_TAGS = new Set(['delete', 'rename', 'dependency', 'project', 'image', 'backend']);
 const BLOCK_TAGS = new Set(['write', 'edit', 'suggestions', 'title', 'questions']);
 
 const RE_SEARCH = /^<{5,9}\s*SEARCH\s*$/;
@@ -132,7 +134,7 @@ const WRAPPER_TAGS = 'file|data|content|code|source|document|write|edit|contents
 const RE_STRAY_WRAPPER = new RegExp(`\\n</(?:${WRAPPER_TAGS})>\\s*$`);
 const RE_STRAY_ANY = /\n<\/[a-zA-Z][\w-]*>\s*$/;
 /** A new action tag at the start of a line (inside a block it means the closing tag was mangled). */
-const RE_NEXT_ACTION = /\n<yasa-(?:write|edit|delete|rename|dependency|title|suggestions|questions|project|image)[\s>/]/;
+const RE_NEXT_ACTION = /\n<yasa-(?:write|edit|delete|rename|dependency|title|suggestions|questions|project|image|backend)[\s>/]/;
 const NEXT_ACTION_PREFIX = '\n<yasa-';
 /**
  * A line that can only be a mangled closing tag (some models close files with "</file>"). In a block that never
@@ -337,6 +339,9 @@ export class ProtocolParser {
         this.handlers.onActionEnd({ id, kind: 'rename', from, to });
         return;
       }
+      case 'backend':
+        this.handlers.onBackend?.();
+        return;
       case 'image': {
         const id = this.nextId();
         const path = attrs.path ?? attrs.src ?? '';

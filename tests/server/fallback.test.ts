@@ -65,12 +65,8 @@ describe('model fallback', () => {
     expect(message.status).toBe('done');
     expect(message.content).toContain('Hello from the fallback model.');
     expect(message.model).toBe('nvidia:nvidia/nemotron-3-super-120b-a12b');
-    expect(message.parts.find((p) => p.type === 'notice')).toEqual({
-      type: 'notice',
-      code: 'model_fallback',
-      from: 'gemini:gemini-flash-latest',
-      to: 'nvidia:nvidia/nemotron-3-super-120b-a12b',
-    });
+    // The switch is invisible in the chat: no notice, no error — just the answer.
+    expect(message.parts.map((p) => p.type)).toEqual(['text']);
     // No waiting on a provider that is out of quota: one attempt, then the switch.
     expect(gemini.calls).toBe(1);
     expect(nvidia.models).toEqual(['nvidia/nemotron-3-super-120b-a12b']);
@@ -110,16 +106,17 @@ describe('model fallback', () => {
     expect(message.parts.find((p) => p.type === 'error')).toMatchObject({ code: 'provider_overloaded' });
   });
 
-  it('does not switch for a request the provider rejects as invalid', async () => {
+  it('also moves on when the provider rejects the request (a retired model, a context it cannot take)', async () => {
     const app = setupTestApp(KEYS);
     setProviderForTests('gemini', failing('gemini', 'bad_request'));
-    const nvidia = answering('nvidia', 'Should not be used.');
+    const nvidia = answering('nvidia', 'Answered elsewhere.');
     setProviderForTests('nvidia', nvidia);
     const { cookie } = await signup(app);
     const project = await createProject(app, cookie, { name: 'Shop' });
     const message = done(await chat(app, cookie, project.id, { message: 'Hi', mode: 'chat', model: 'gemini:gemini-flash-latest' }));
-    expect(message.status).toBe('error');
-    expect(nvidia.calls).toBe(0);
+    expect(message.status).toBe('done');
+    expect(message.content).toContain('Answered elsewhere.');
+    expect(nvidia.calls).toBe(1);
   });
 });
 
@@ -137,12 +134,17 @@ describe('model health memory', () => {
     expect(gemini.calls).toBe(1);
 
     const second = done(await chat(app, cookie, project.id, { message: 'Second', mode: 'chat', model: 'gemini:gemini-flash-latest' }));
-    // Gemini is resting: it was not asked again, and the user is told which model answered.
+    // Gemini is resting: it was not asked again, and nothing in the chat says so.
     expect(gemini.calls).toBe(1);
     expect(nvidia.calls).toBe(2);
     expect(second.status).toBe('done');
     expect(second.model).toBe('nvidia:nvidia/nemotron-3-super-120b-a12b');
-    expect(second.parts[0]).toMatchObject({ type: 'notice', from: 'gemini:gemini-flash-latest' });
+    expect(second.parts.some((p) => p.type === 'notice')).toBe(false);
+
+    // …and the model list leaves it out while it rests.
+    const models = (await (await call(app, 'GET', '/api/models', { cookie })).json()) as { models: Array<{ id: string }>; defaultModel: string };
+    expect(models.models.some((m) => m.id === 'gemini:gemini-flash-latest')).toBe(false);
+    expect(models.defaultModel).not.toBe('gemini:gemini-flash-latest');
   });
 
   it('treats an out-of-credit answer (402) like used-up quota', async () => {
@@ -183,7 +185,7 @@ describe('cut-off streams', () => {
     const message = done(await chat(app, cookie, project.id, { message: 'Add two data files', model: 'gemini:gemini-flash-latest' }));
 
     expect(message.status).toBe('done');
-    expect(message.parts.some((p) => p.type === 'notice')).toBe(true);
+    expect(message.parts.some((p) => p.type === 'notice')).toBe(false);
     expect(message.parts.some((p) => p.type === 'error')).toBe(false);
     expect(prompts[0]).toContain('cut off');
     expect(prompts[0]).toContain('src/data/b.ts');

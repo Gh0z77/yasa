@@ -51,6 +51,9 @@ import type {
   ProjectDomain,
   ProjectMember,
   ProjectMemberRole,
+  SupabaseAccount,
+  SupabaseAccountProject,
+  SupabaseConnectStart,
   SupabaseApplyResponse,
   SupabaseConnectRequest,
   SupabaseOverview,
@@ -229,6 +232,17 @@ export const api = {
     disconnect: (projectId: string) => del<SupabaseStatus>(`/projects/${seg(projectId)}/supabase`, {}),
     apply: (projectId: string) => post<SupabaseApplyResponse>(`/projects/${seg(projectId)}/supabase/migrations/apply`),
     mark: (projectId: string, path: string) => post<SupabaseStatus>(`/projects/${seg(projectId)}/supabase/migrations/mark`, { path }),
+    /** One of the user's own Supabase projects (from the connected account). */
+    link: (projectId: string, ref: string) => post<SupabaseStatus>(`/projects/${seg(projectId)}/supabase/link`, { ref }),
+    create: (projectId: string, body: { organizationId?: string; region?: string } = {}) => post<SupabaseAccountProject>(`/projects/${seg(projectId)}/supabase/create`, body),
+  },
+
+  /** The user's own Supabase account. */
+  supabaseAccount: {
+    get: (o?: RequestOptions) => get<SupabaseAccount>('/me/supabase', undefined, o),
+    /** Where to send the browser to approve Yasa on Supabase; it comes back to `returnTo`. */
+    startConnect: (returnTo: string) => post<SupabaseConnectStart>('/me/supabase/connect', { returnTo }),
+    disconnect: () => del<SupabaseAccount>('/me/supabase', {}),
   },
 
   /** Custom domains of a published project. */

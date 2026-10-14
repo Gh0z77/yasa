@@ -11,6 +11,7 @@ export const settings = {
     ai: "AI va API kalitlari",
     usage: "Foydalanish",
     appearance: "Tashqi koʻrinish",
+    integrations: "Integratsiyalar",
   },
   profile: {
     title: "Profil",

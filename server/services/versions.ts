@@ -24,6 +24,9 @@ interface VersionFileRow {
 
 const COLS = 'id, project_id, number, summary, source, message_id, files_changed, build_ok, created_at';
 
+/** Files per INSERT when a version is saved. */
+const SNAPSHOT_BATCH = 50;
+
 function toVersion(row: VersionRow): VersionSummary {
   return {
     id: row.id,
@@ -82,10 +85,18 @@ export function createVersion(
 
     let changed = 0;
     const seen = new Set<string>();
-    for (const file of files) {
-      const hash = blobHash(file.content, file.encoding);
-      run('INSERT OR IGNORE INTO blobs (hash, content, encoding, size) VALUES (?, ?, ?, ?)', hash, file.content, file.encoding, file.size);
-      run('INSERT INTO version_files (version_id, path, blob_hash) VALUES (?, ?, ?)', id, file.path, hash);
+    const entries = files.map((file) => ({ file, hash: blobHash(file.content, file.encoding) }));
+    // Every statement is a round trip to a hosted database: the files go in batches.
+    for (let i = 0; i < entries.length; i += SNAPSHOT_BATCH) {
+      const batch = entries.slice(i, i + SNAPSHOT_BATCH);
+      const blobs = [...new Map(batch.map((e) => [e.hash, e])).values()];
+      run(
+        `INSERT OR IGNORE INTO blobs (hash, content, encoding, size) VALUES ${blobs.map(() => '(?, ?, ?, ?)').join(', ')}`,
+        ...blobs.flatMap((e) => [e.hash, e.file.content, e.file.encoding, e.file.size]),
+      );
+      run(`INSERT INTO version_files (version_id, path, blob_hash) VALUES ${batch.map(() => '(?, ?, ?)').join(', ')}`, ...batch.flatMap((e) => [id, e.file.path, e.hash]));
+    }
+    for (const { file, hash } of entries) {
       seen.add(file.path);
       if (previousFiles.get(file.path) !== hash) changed++;
     }

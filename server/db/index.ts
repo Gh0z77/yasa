@@ -180,15 +180,24 @@ export function resetDbForTests(): void {
   engine = openSqlite(':memory:');
 }
 
+/** Statements sent since start-up: a cheap way to see how chatty a code path is (tests, diagnostics). */
+export const queryStats = { count: 0, log: null as string[] | null };
+
 export function run(sql: string, ...params: Param[]): { changes: number } {
+  queryStats.count++;
+  queryStats.log?.push(sql);
   return db().run(sql, params);
 }
 
 export function get<T>(sql: string, ...params: Param[]): T | undefined {
+  queryStats.count++;
+  queryStats.log?.push(sql);
   return db().get(sql, params) as T | undefined;
 }
 
 export function all<T>(sql: string, ...params: Param[]): T[] {
+  queryStats.count++;
+  queryStats.log?.push(sql);
   return db().all(sql, params) as T[];
 }
 
