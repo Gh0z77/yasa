@@ -75,6 +75,26 @@ function lineOf(source: string, name: string): { line: number; lineText: string 
   return { line, lineText: (source.split('\n')[line - 1] ?? '').trim().slice(0, 200) };
 }
 
+/** Every HTML and SVG element a component may render with a lower-case tag. */
+const KNOWN_ELEMENTS = new Set(
+  (
+    'a abbr address area article aside audio b base bdi bdo blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hgroup hr html i iframe img input ins kbd label legend li link main map mark menu meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script search section select slot small source span strong style sub summary sup table tbody td template textarea tfoot th thead time title tr track u ul var video wbr ' +
+    'svg animate animateMotion animateTransform circle clipPath defs desc ellipse feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feImage feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence filter foreignObject g image line linearGradient marker mask metadata mpath path pattern polygon polyline radialGradient rect set stop switch symbol text textPath tspan use view'
+  ).split(' '),
+);
+
+/** Lower-case JSX tags that are no element ("<trash2 />" meant as the Trash2 icon). */
+export function unknownElements(code: string): string[] {
+  const names = new Set<string>();
+  for (const match of code.matchAll(/\bjsxs?\(\s*"([^"]+)"/g)) {
+    const name = match[1]!;
+    if (!name.includes('-') && !KNOWN_ELEMENTS.has(name)) names.add(name);
+  }
+  return [...names];
+}
+
+const pascal = (name: string) => name.replace(/(^|[-_])([a-z0-9])/g, (_m, _sep, ch: string) => ch.toUpperCase());
+
 /** Names that are used in one file but neither declared in it nor known globals. */
 export function undefinedReferences(code: string): string[] {
   const ast = parse(code, { ecmaVersion: 'latest', sourceType: 'module' });
@@ -125,12 +145,25 @@ export async function validateReferences(sources: ValidateSource[]): Promise<Bui
   for (const source of sources) {
     if (!SCRIPT.test(source.path) || source.path.endsWith('.d.ts')) continue;
     let missing: string[];
+    let unknown: string[];
     try {
       const loader = source.path.endsWith('x') ? (source.path.endsWith('.tsx') ? 'tsx' : 'jsx') : source.path.endsWith('.ts') || source.path.endsWith('.mts') ? 'ts' : 'js';
       const { code } = await esbuild.transform(source.content, { loader, jsx: 'automatic', format: 'esm', target: 'es2022' });
       missing = undefinedReferences(code);
+      unknown = unknownElements(code);
     } catch {
       continue;
+    }
+    for (const name of unknown) {
+      const where = lineOf(source.content, name);
+      errors.push({
+        file: source.path,
+        line: where?.line ?? null,
+        column: null,
+        message: `<${name}> is not an HTML element, so React renders nothing for it. Components start with an upper-case letter: use <${pascal(name)} /> and import it (icons come from "lucide-react").`,
+        lineText: where?.lineText ?? null,
+      });
+      if (errors.length >= MAX_ERRORS) return errors;
     }
     for (const name of missing) {
       const where = lineOf(source.content, name);

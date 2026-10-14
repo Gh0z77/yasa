@@ -63,6 +63,30 @@ export function restoreTree(tree: WorkingTree, snapshot: WorkingTree): FileChang
   return changes;
 }
 
+const STYLES_ENTRY = 'src/index.css';
+const IMPORTS_STYLES = /import\s+["'](?:\.\/|@\/|\/src\/)index\.css["']/;
+
+/**
+ * The app's styles (Tailwind and the theme) come in through `import "./index.css"` in src/main.tsx. A model that
+ * rewrites main.tsx sometimes drops that line, and the whole app turns into unstyled HTML. Put it back.
+ */
+export function ensureStylesImported(tree: WorkingTree): FileChange[] {
+  const entry = tree.get('src/main.tsx');
+  if (!entry || entry.encoding !== 'utf8' || !tree.has(STYLES_ENTRY)) return [];
+  for (const [path, file] of tree) {
+    if (/\.(?:tsx?|jsx?)$/.test(path) && file.encoding === 'utf8' && IMPORTS_STYLES.test(file.content)) return [];
+  }
+  const lines = entry.content.split('\n');
+  let last = -1;
+  lines.forEach((line, index) => {
+    if (/^\s*import\s/.test(line)) last = index;
+  });
+  lines.splice(last + 1, 0, 'import "./index.css";');
+  const content = lines.join('\n');
+  tree.set('src/main.tsx', { content, encoding: 'utf8' });
+  return [{ path: 'src/main.tsx', kind: 'upsert', content, encoding: 'utf8' }];
+}
+
 const RE_POLICY_IF_NOT_EXISTS = /create\s+policy\s+if\s+not\s+exists\s+("[^"]+"|[\w$]+)\s+on\s+((?:"[^"]+"|[\w$]+)(?:\.(?:"[^"]+"|[\w$]+))?)/gi;
 
 /** True for the SQL migrations the Supabase panel applies. */

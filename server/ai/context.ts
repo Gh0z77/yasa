@@ -78,15 +78,10 @@ export function renderProjectFiles(tree: WorkingTree, opts: RenderFilesOptions =
     budget -= file.content.length;
     if (path === 'src/App.tsx' && isPlaceholderApp(file.content)) {
       // Only the starter screen: the model must replace it, not build below it.
-      if (isTemplateFile(path, file.content)) {
-        rendered.set(path, `<file path="src/App.tsx" placeholder="true" note="starter screen only: replace this whole file with yasa-write; keep nothing of it" />`);
-        continue;
-      }
-      // An app was built below the starter screen: show it all and say what has to go.
-      rendered.set(
-        path,
-        `<file path="src/App.tsx" placeholder="true" note="still contains the starter screen above the app: rewrite the file without it">\n${guard(file.content, 'file')}${file.content.endsWith('\n') ? '' : '\n'}</file>`,
-      );
+      const note = isTemplateFile(path, file.content)
+        ? 'starter screen only: replace this whole file with yasa-write; keep nothing of it'
+        : 'still contains the starter screen above the app: rewrite the file without it';
+      rendered.set(path, `<file path="src/App.tsx" placeholder="true" note="${note}">\n${guard(file.content, 'file')}${file.content.endsWith('\n') ? '' : '\n'}</file>`);
       continue;
     }
     rendered.set(path, `<file path="${escapeAttr(path)}">\n${guard(file.content, 'file')}${file.content.endsWith('\n') ? '' : '\n'}</file>`);

@@ -124,7 +124,8 @@ describe('unused files', () => {
     const starter = getTemplateFiles('uz')['src/App.tsx']!.content;
     const untouched = renderProjectFiles(treeFromFiles([{ path: 'src/App.tsx', content: starter, encoding: 'utf8' }]));
     expect(untouched).toContain('<file path="src/App.tsx" placeholder="true" note="starter screen only');
-    expect(untouched).not.toContain('animate-bounce');
+    // shown in full, so an edit can still anchor on it
+    expect(untouched).toContain('animate-bounce');
     // an app appended below the starter screen is shown in full, with the instruction to drop the starter part
     const mixed = renderProjectFiles(treeFromFiles([{ path: 'src/App.tsx', content: `${starter}\nexport function Wedding() { return null; }\n`, encoding: 'utf8' }]));
     expect(mixed).toContain('still contains the starter screen');
@@ -220,6 +221,45 @@ create policy read_all on notes FOR SELECT USING (true);
 create policy "kept as is" on public.clients for delete using (true);`);
     expect(isMigrationPath('supabase/migrations/20260101000000_init.sql')).toBe(true);
     expect(isMigrationPath('src/data/seed.sql')).toBe(false);
+  });
+
+  it('puts back the stylesheet import a rewrite of main.tsx dropped', async () => {
+    const { ensureStylesImported } = await import('../../server/ai/tidy');
+    const main = [
+      'import { StrictMode } from "react";',
+      'import { createRoot } from "react-dom/client";',
+      'import App from "./App";',
+      '',
+      'createRoot(document.getElementById("root")!).render(<App />);',
+    ].join('\n');
+    const tree = treeFromFiles([
+      { path: 'src/main.tsx', content: main, encoding: 'utf8' },
+      { path: 'src/index.css', content: '@import "tailwindcss";', encoding: 'utf8' },
+    ]);
+    expect(ensureStylesImported(tree)).toHaveLength(1);
+    expect(tree.get('src/main.tsx')!.content).toContain('import App from "./App";\nimport "./index.css";\n');
+    // once it is there (or imported anywhere else) nothing changes
+    expect(ensureStylesImported(tree)).toEqual([]);
+    const elsewhere = treeFromFiles([
+      { path: 'src/main.tsx', content: main, encoding: 'utf8' },
+      { path: 'src/App.tsx', content: 'import "@/index.css";\nexport default function App() { return null; }', encoding: 'utf8' },
+      { path: 'src/index.css', content: '', encoding: 'utf8' },
+    ]);
+    expect(ensureStylesImported(elsewhere)).toEqual([]);
+  });
+
+  it('flags lower-case tags that are no element', async () => {
+    const { validateReferences } = await import('../../server/preview/validate-refs');
+    const content = [
+      'export function Item() {',
+      '  return <li><span>x</span><trash2 className="size-4" /><svg><linearGradient id="g" /></svg><my-widget /></li>;',
+      '}',
+    ].join('\n');
+    const errors = await validateReferences([{ path: 'src/Item.tsx', content }]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ file: 'src/Item.tsx', line: 2 });
+    expect(errors[0]!.message).toContain('<trash2> is not an HTML element');
+    expect(errors[0]!.message).toContain('<Trash2 />');
   });
 
   it('returns no change when everything is already declared', () => {

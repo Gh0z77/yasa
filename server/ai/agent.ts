@@ -33,7 +33,7 @@ import {
 } from './context';
 import { ProtocolParser, type ParsedAction } from './parser';
 import { buildSystemPrompt, CONTINUE_INTRO, FAILED_ACTIONS_INTRO, FIX_BUILD_INTRO, FIX_MIGRATION_INTRO, PLACEHOLDER_INTRO, UNUSED_FILES_INTRO } from './prompt';
-import { declareDependencies, fixMigrationSql, isMigrationPath, restoreTree, unusedFileError, unusedFiles } from './tidy';
+import { declareDependencies, ensureStylesImported, fixMigrationSql, isMigrationPath, restoreTree, unusedFileError, unusedFiles } from './tidy';
 import { generateImage, imageGenerationEnabled, normalizeAspect } from '../services/imagegen';
 import { applyPendingMigrations, getSupabaseStatus, SUPABASE_CLIENT_PATH } from '../services/supabase';
 import { hasSupabaseAccount, provisionBackend, waitUntilReady } from '../services/supabase-account';
@@ -633,6 +633,12 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
       const failedActions = result.outcomes.filter((o) => !o.result.ok);
       if (!anyChange && failedActions.length === 0) break;
 
+      // A dropped stylesheet import would leave the whole app unstyled: restored before the build.
+      const styles = ensureStylesImported(tree);
+      if (styles.length > 0) {
+        applyFileChanges(project.id, styles);
+        emit({ type: 'files_changed', changes: styles });
+      }
       let build = await validate();
       // Packages the code imports but package.json does not list are declared here, not by another model pass.
       if (build.undeclared.length > 0) {
