@@ -31,7 +31,7 @@ import {
   type ContextImage,
 } from './context';
 import { ProtocolParser, type ParsedAction } from './parser';
-import { buildSystemPrompt, CONTINUE_INTRO, FAILED_ACTIONS_INTRO, FIX_BUILD_INTRO, FIX_MIGRATION_INTRO, UNUSED_FILES_INTRO } from './prompt';
+import { buildSystemPrompt, CONTINUE_INTRO, FAILED_ACTIONS_INTRO, FIX_BUILD_INTRO, FIX_MIGRATION_INTRO, PLACEHOLDER_INTRO, UNUSED_FILES_INTRO } from './prompt';
 import { declareDependencies, fixMigrationSql, isMigrationPath, restoreTree, unusedFileError, unusedFiles } from './tidy';
 import { generateImage, imageGenerationEnabled, normalizeAspect } from '../services/imagegen';
 import { applyPendingMigrations, getSupabaseStatus, SUPABASE_CLIENT_PATH } from '../services/supabase';
@@ -73,6 +73,8 @@ interface PassResult {
   cut: ProviderError | null;
 }
 
+/** Words of the starter screen's App.tsx (server/template): while they are there, nothing was built yet. */
+const PLACEHOLDER_MARK = 'Placeholder screen — it is replaced as soon as you describe your app in the chat.';
 const UPLOAD_REF = /\/uploads\/(upl_[a-z2-7]{26})\.(?:png|jpe?g|webp|gif)/g;
 const PERSIST_EVERY_MS = 2000;
 const RAW_HISTORY_MAX = 300_000;
@@ -89,7 +91,9 @@ const MAX_RESUMES = 3;
 
 /** A model that needs credits stays out much longer than one that is merely busy. */
 function cooldownFor(err: ProviderError): number | undefined {
-  return /credits|payment required|insufficient (?:credit|balance|funds)/i.test(err.message) ? NO_CREDITS_COOLDOWN_MS : undefined;
+  return /credits|payment required|insufficient (?:credit|balance|funds)|no endpoints|model not found|does not exist|deprecated|decommissioned/i.test(err.message)
+    ? NO_CREDITS_COOLDOWN_MS
+    : undefined;
 }
 
 function treeToFiles(tree: WorkingTree): ProjectFile[] {
@@ -577,6 +581,7 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
     let continued = false;
     let resumes = 0;
     let wiringAsked = false;
+    let placeholderNudged = false;
     let escalated = false;
     // The files as they were at the last build that passed in this turn.
     let lastGood: WorkingTree | null = null;
@@ -676,6 +681,28 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
           ...baseMessages,
           assistantTurn(),
           { role: 'user', content: [{ type: 'text', text: unused.length > 0 ? unusedMessage(unused) : repairMessage(summary.errors, failedActions) }] },
+        ];
+        continue;
+      }
+      // The build passes but the app is still the starter placeholder: the model restyled or tweaked something and
+      // never built what was asked (weak models do this after the clarifying questions). Ask once more.
+      if (
+        summary.ok &&
+        failedActions.length === 0 &&
+        withinBudget &&
+        canRetry &&
+        !placeholderNudged &&
+        mode === 'build' &&
+        request.intent !== 'fix' &&
+        (tree.get('src/App.tsx')?.content ?? '').includes(PLACEHOLDER_MARK)
+      ) {
+        placeholderNudged = true;
+        attempts++;
+        const hosts = ['src/App.tsx', 'src/index.css'].filter((path) => tree.has(path));
+        messages = [
+          ...baseMessages,
+          assistantTurn(),
+          { role: 'user', content: [{ type: 'text', text: `${PLACEHOLDER_INTRO}\n\nCurrent content:\n${renderFilesFull(tree, hosts)}` }] },
         ];
         continue;
       }

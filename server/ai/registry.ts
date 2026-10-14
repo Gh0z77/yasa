@@ -10,6 +10,7 @@ import { mockProvider } from './providers/mock';
 import { NVIDIA_DEFAULT_MODEL, nvidiaProvider } from './providers/nvidia';
 import { OPENROUTER_DEFAULT_MODEL, openrouterProvider } from './providers/openrouter';
 import { isUnavailable } from './health';
+import { goneFromOpenRouter } from './openrouter-catalog';
 import { openaiProvider } from './providers/openai';
 import { ProviderError, type Provider } from './providers/types';
 
@@ -101,7 +102,11 @@ export function listModelsForUser(userId: string | null): ModelsResponse {
   const models: ModelInfo[] = catalogFor(userId).map((entry) => {
     const key = resolveKey(userId, entry.provider);
     // A user's OpenAI-compatible key only serves the model saved with it.
-    const usable = Boolean(key) && !(entry.provider === 'openai' && key?.keySource === 'user' && key.model && key.model !== entry.model);
+    const usable =
+      Boolean(key) &&
+      !(entry.provider === 'openai' && key?.keySource === 'user' && key.model && key.model !== entry.model) &&
+      // A free OpenRouter model that has been withdrawn would only fail.
+      !(entry.provider === 'openrouter' && goneFromOpenRouter(entry.model));
     return { ...entry, available: usable, keySource: usable ? key!.keySource : null };
   });
   const user = userId ? getUserById(userId) : null;
@@ -158,7 +163,7 @@ const FALLBACK_MODELS: Partial<Record<ProviderId, string[]>> = {
   nvidia: [NVIDIA_DEFAULT_MODEL, 'nvidia/nemotron-3-ultra-550b-a55b'],
   // Free models only (the paid ones are picked by the user, not silently as a fallback), in the order they did
   // on real builds: fastest first. Each has its own upstream limits, so one being busy says little about the next.
-  openrouter: [OPENROUTER_DEFAULT_MODEL, 'nvidia/nemotron-3-super-120b-a12b:free', 'cohere/north-mini-code:free', 'nvidia/nemotron-3-ultra-550b-a55b:free'],
+  openrouter: [OPENROUTER_DEFAULT_MODEL, 'cohere/north-mini-code:free', 'nvidia/nemotron-3-ultra-550b-a55b:free'],
 };
 /** Paid quality first, then the free tiers by how reliably they answer. */
 const FALLBACK_ORDER: ProviderId[] = ['anthropic', 'openrouter', 'nvidia', 'gemini', 'openai'];

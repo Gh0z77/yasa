@@ -95,6 +95,24 @@ export function parseQuestions(raw: string): ChatQuestion[] {
 }
 
 const TAG_PREFIX = '<yasa-';
+/**
+ * Markup some models copy from the prompt or wrap their answer in (the context's `<project_files>`, `<file>`,
+ * reasoning tags): never meant for the user, so it is dropped from the chat text.
+ */
+const STRAY_NAMES = ['project_files', 'file', 'files', 'think', 'thinking', 'answer', 'response', 'output', 'assistant', 'reply'];
+const STRAY_TAG = new RegExp(`^</?(?:${STRAY_NAMES.join('|')})(?:\\s[^<>]{0,240})?/?>`);
+
+/** Length of a stray tag at the start of `buffer`, -1 when it may still turn into one, 0 when it is not one. */
+function strayTagLength(buffer: string, final: boolean): number {
+  const whole = STRAY_TAG.exec(buffer);
+  if (whole) return whole[0].length;
+  if (final || buffer.includes('>')) return 0;
+  const name = /^<\/?([a-z_]*)$/.exec(buffer);
+  if (name && STRAY_NAMES.some((n) => n.startsWith(name[1]!))) return -1;
+  const withAttributes = /^<\/?([a-z_]+)\s[^<>]*$/.exec(buffer);
+  return withAttributes && STRAY_NAMES.includes(withAttributes[1]!) && buffer.length < 260 ? -1 : 0;
+}
+
 /** Closing tags outside a block ("</yasa-assistant>") are noise some models add around their answer. */
 const CLOSE_PREFIX = '</yasa-';
 const MAX_OPEN_TAG = 1200;
@@ -282,6 +300,12 @@ export class ProtocolParser {
           this.buffer = this.buffer.slice(1);
           continue;
         }
+      }
+      const stray = strayTagLength(this.buffer, final);
+      if (stray < 0) return; // might still become one of those tags
+      if (stray > 0) {
+        this.buffer = this.buffer.slice(stray);
+        continue;
       }
       const head = this.buffer.slice(0, TAG_PREFIX.length);
       if (!TAG_PREFIX.startsWith(head) && !head.startsWith(TAG_PREFIX)) {

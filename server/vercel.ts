@@ -4,6 +4,7 @@ import { getRequestListener } from '@hono/node-server';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createApp } from './app';
 import { getDb } from './db';
+import { getConfig } from './env';
 import { staleGenerationMs } from './lib/hosting';
 import { logger } from './lib/logger';
 import { markStreamingMessagesInterrupted } from './services/messages';
@@ -23,6 +24,10 @@ function boot(): Listener {
     deleteExpiredSessions();
   } catch (err) {
     logger.error('Start-up clean-up failed', { error: err });
+  }
+  const { sandboxDomain } = getConfig();
+  if (/(^|\.)localhost(:\d+)?$/.test(sandboxDomain)) {
+    logger.error('SANDBOX_DOMAIN is not set: previews and published apps cannot load. Add a second domain and set SANDBOX_DOMAIN and SANDBOX_MODE=path (docs/VERCEL.md).');
   }
   const app = createApp();
   return getRequestListener(app.fetch) as Listener;

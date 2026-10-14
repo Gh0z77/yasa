@@ -102,6 +102,22 @@ describe('unused files', () => {
     expect(detail.files.find((f) => f.path === 'src/App.tsx')?.content).toContain('<Stats />');
   });
 
+  it('asks once more when the reply left the starter placeholder in place', async () => {
+    const app = setupTestApp(KEYS);
+    const provider = scripted([`Colours updated.${write('src/index.css', '@import "tailwindcss";\n:root { --primary: #dc2626; }')}`, `Here is the site.${write('src/App.tsx', APP_EMPTY)}`]);
+    setProviderForTests('gemini', provider);
+    const { cookie } = await signup(app);
+    const project = await createProject(app, cookie, { name: 'School' });
+
+    const message = done(await chat(app, cookie, project.id, { message: 'A site for a learning centre', model: 'gemini:gemini-flash-latest' }));
+
+    expect(provider.prompts).toHaveLength(2);
+    expect(provider.prompts[1]).toContain('starter placeholder');
+    expect(message.status).toBe('done');
+    const detail = await json<ProjectDetailResponse>(await call(app, 'GET', `/api/projects/${project.id}`, { cookie }));
+    expect(detail.files.find((f) => f.path === 'src/App.tsx')?.content.trim()).toBe(APP_EMPTY);
+  });
+
   it('does not insist: a model that leaves the file unused still finishes the turn', async () => {
     const app = setupTestApp(KEYS);
     const provider = scripted([`Done.${write('src/components/Stats.tsx', STATS)}`, 'It is kept for later on purpose.']);
@@ -111,7 +127,9 @@ describe('unused files', () => {
 
     const message = done(await chat(app, cookie, project.id, { message: 'Prepare a stats block', model: 'gemini:gemini-flash-latest' }));
 
-    expect(provider.prompts).toHaveLength(2);
+    // one reminder about the unused file, one about the untouched starter screen — then the turn ends
+    expect(provider.prompts).toHaveLength(3);
+    expect(provider.prompts[2]).toContain('starter placeholder');
     const builds = message.parts.filter((p): p is BuildPart => p.type === 'build');
     expect(builds[builds.length - 1]).toMatchObject({ ok: true, willRetry: false });
     expect(message.status).toBe('done');

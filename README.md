@@ -55,8 +55,7 @@ Oʻtish tartibi: avval shu provayderning boshqa modellari, keyin Anthropic → O
 
 | Model | Natija |
 | --- | --- |
-| `apodex/apodex-1.1-mini:free` (standart) | eng tez: 45–125 s |
-| `nvidia/nemotron-3-super-120b-a12b:free` | ~75 s, barqaror |
+| `nvidia/nemotron-3-super-120b-a12b:free` (standart) | ~75 s, barqaror; birinchi javob 1 soniyadan tez |
 | `cohere/north-mini-code:free` | ~270 s, ehtiyotkor |
 | `nvidia/nemotron-3-ultra-550b-a55b:free` | ~480 s, eng katta |
 

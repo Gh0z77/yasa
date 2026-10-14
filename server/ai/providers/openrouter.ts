@@ -5,7 +5,7 @@ import type { Provider } from './types';
 
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 /** Free, fast model used for key checks and as a fallback. */
-export const OPENROUTER_DEFAULT_MODEL = 'apodex/apodex-1.1-mini:free';
+export const OPENROUTER_DEFAULT_MODEL = 'nvidia/nemotron-3-super-120b-a12b:free';
 
 export const openrouterProvider: Provider = {
   id: 'openrouter',

@@ -92,14 +92,6 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     tier: 'fast',
   },
   {
-    id: 'openrouter:apodex/apodex-1.1-mini:free',
-    provider: 'openrouter',
-    model: 'apodex/apodex-1.1-mini:free',
-    label: 'Apodex 1.1 Mini (free)',
-    description: 'OpenRouter free model — the fastest',
-    tier: 'fast',
-  },
-  {
     id: 'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
     provider: 'openrouter',
     model: 'nvidia/nemotron-3-super-120b-a12b:free',
@@ -209,7 +201,8 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 export const DEFAULT_MODEL_PREFERENCE: ModelId[] = [
   'anthropic:claude-opus-5',
   // Without a paid key the free OpenRouter models come first: they answer when free Gemini is overloaded.
-  'openrouter:apodex/apodex-1.1-mini:free',
+  'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
+  'openrouter:cohere/north-mini-code:free',
   // Flash works on free Gemini keys; the Pro models usually need a paid quota.
   'gemini:gemini-flash-latest',
 ];

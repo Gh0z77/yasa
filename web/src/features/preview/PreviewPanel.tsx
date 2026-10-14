@@ -222,6 +222,14 @@ export function PreviewPanel(props: { projectId: string; previewUrl: string; rea
     setRouteDraft(null);
   };
 
+  // A hosted site whose previews still point at a local address can never load them: say so instead of spinning.
+  const misconfigured = useMemo(() => {
+    try {
+      return /(^|\.)localhost$/.test(new URL(previewUrl).hostname) && !/(^|\.)localhost$|^127\.0\.0\.1$/.test(window.location.hostname);
+    } catch {
+      return false;
+    }
+  }, [previewUrl]);
   const openUrl = `${previewUrl.replace(/\/$/, '')}${previewPath.startsWith('/') ? previewPath : `/${previewPath}`}`;
 
   return (
@@ -309,7 +317,16 @@ export function PreviewPanel(props: { projectId: string; previewUrl: string; rea
           />
         </div>
 
-        {loading && !isFirstRun ? (
+        {misconfigured ? (
+          <div className="absolute inset-0 grid place-items-center bg-background px-6">
+            <div className="max-w-sm text-center">
+              <p className="text-[13px] font-medium">{t('loading.misconfigured')}</p>
+              <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">{t('loading.misconfiguredHint')}</p>
+            </div>
+          </div>
+        ) : null}
+
+        {loading && !isFirstRun && !misconfigured ? (
           <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background/70 backdrop-blur-[1px]">
             <div className="pointer-events-auto max-w-xs text-center">
               <LoaderCircle className="mx-auto size-5 animate-spin text-muted-foreground" />

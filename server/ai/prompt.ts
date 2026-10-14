@@ -230,5 +230,8 @@ export const UNUSED_FILES_INTRO =
 export const FIX_MIGRATION_INTRO =
   'The app builds, but a SQL migration you wrote failed on the database (see <failed_migration>). It was rolled back, so rewrite that same file with corrected SQL. Change only what is needed, and do not repeat the explanation — one short sentence, then the tags.';
 
+export const PLACEHOLDER_INTRO =
+  'The app still shows the starter placeholder: src/App.tsx was never replaced, so the user sees nothing of what they asked for. Build the requested app now — replace src/App.tsx and write the sections and components it needs, following what the user asked and answered. Keep what you already changed. One short sentence, then the tags.';
+
 export const CONTINUE_INTRO =
   'Your previous response was cut off before it finished. The last incomplete action was discarded. Continue exactly where you left off: do not rewrite files that were already completed, and finish the remaining work.';

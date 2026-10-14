@@ -106,6 +106,11 @@ describe('ProtocolParser', () => {
       expect(out.actions).toHaveLength(0);
     });
 
+    it(`drops prompt markup a model copies into its answer (${name})`, () => {
+      const out = run('I changed the colours.\n</project_files>\n<think>\nDone.\n</think>\nA <filed> item and <b>bold</b> stay.', chunker);
+      expect(out.text).toBe('I changed the colours.\n\n\nDone.\n\nA <filed> item and <b>bold</b> stay.');
+    });
+
     it(`ends a file at a mangled closing tag (${name})`, () => {
       const out = run(
         'Go.\n<yasa-write path="src/a.ts">\nexport const a = 1;\n</file>\n\nNow the second one.\n</think>\n\n<yasa-write path="src/b.tsx">\nexport const B = () => <b />;\n</file>\n\nAll done.',

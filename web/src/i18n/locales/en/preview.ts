@@ -15,6 +15,8 @@ export const preview = {
     slow: 'The preview is taking a while',
     slowHint: 'The first load downloads the app’s packages, which can take up to half a minute.',
     openDirect: 'Open it directly',
+    misconfigured: 'Previews are not set up on this site',
+    misconfiguredHint: 'The server still uses a local preview address. In Vercel add a second domain and set SANDBOX_DOMAIN to it and SANDBOX_MODE to path (docs/VERCEL.md), then redeploy.',
   },
   firstRun: {
     title: 'Yasa is building your app',

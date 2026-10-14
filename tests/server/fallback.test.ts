@@ -204,11 +204,10 @@ describe('free OpenRouter models', () => {
     const app = setupTestApp(FREE_KEYS);
     const me = await signup(app);
 
-    expect(listModelsForUser(me.user.id).defaultModel).toBe('openrouter:apodex/apodex-1.1-mini:free');
+    expect(listModelsForUser(me.user.id).defaultModel).toBe('openrouter:nvidia/nemotron-3-super-120b-a12b:free');
     const plan = planModels(me.user.id, null);
-    expect(plan.model.modelId).toBe('openrouter:apodex/apodex-1.1-mini:free');
+    expect(plan.model.modelId).toBe('openrouter:nvidia/nemotron-3-super-120b-a12b:free');
     expect(plan.fallbacks.map((m) => m.modelId)).toEqual([
-      'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
       'openrouter:cohere/north-mini-code:free',
       'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free',
       'nvidia:nvidia/nemotron-3-super-120b-a12b',
@@ -217,6 +216,23 @@ describe('free OpenRouter models', () => {
     ]);
     // nothing that costs money is ever chosen silently
     expect(plan.fallbacks.some((m) => m.provider.id === 'openrouter' && !m.model.endsWith(':free'))).toBe(false);
+  });
+
+  it('leaves out a free model OpenRouter no longer lists', async () => {
+    const app = setupTestApp(FREE_KEYS);
+    const me = await signup(app);
+    const { setOpenRouterCatalogForTests } = await import('../../server/ai/openrouter-catalog');
+    const { setConfigForTests, getConfig } = await import('../../server/env');
+    // the catalog is only consulted outside tests: pretend to be a normal server for a moment
+    setConfigForTests({ ...getConfig(), isTest: false, ...FREE_KEYS });
+    setOpenRouterCatalogForTests(['cohere/north-mini-code:free', 'nvidia/nemotron-3-ultra-550b-a55b:free']);
+    try {
+      const plan = planModels(me.user.id, null);
+      expect(plan.model.modelId).toBe('openrouter:cohere/north-mini-code:free');
+      expect(plan.fallbacks.some((m) => m.modelId === 'openrouter:nvidia/nemotron-3-super-120b-a12b:free')).toBe(false);
+    } finally {
+      setOpenRouterCatalogForTests(null);
+    }
   });
 
   it('a paid Anthropic key still comes first', async () => {

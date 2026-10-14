@@ -19,6 +19,8 @@ export const preview = {
     slow: "Koʻrinish yuklanishi choʻzilmoqda",
     slowHint: "Birinchi yuklashda ilova paketlari olinadi, bu yarim daqiqagacha vaqt olishi mumkin.",
     openDirect: "Toʻgʻridan-toʻgʻri ochish",
+    misconfigured: "Bu saytda koʻrinish (preview) sozlanmagan",
+    misconfiguredHint: "Server hali mahalliy preview manzilidan foydalanyapti. Vercel’da ikkinchi domen qoʻshing, SANDBOX_DOMAIN ga shu domenni va SANDBOX_MODE ga path qiymatini yozing (docs/VERCEL.md), soʻng qayta deploy qiling.",
   },
   firstRun: {
     title: "Yasa ilovangizni yaratmoqda",
