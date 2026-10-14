@@ -2,9 +2,15 @@
 //   pv-<token>.<SANDBOX_DOMAIN>          → live draft preview of a project
 //   pv-<token>--v<N>.<SANDBOX_DOMAIN>    → read-only preview of version N
 //   <slug>.<SANDBOX_DOMAIN>              → published app
-// Sandbox hosts never reach /api and never read cookies.
+// Sandbox hosts never reach /api and never read the builder's cookies.
+//
+// Hosts without wildcard domains (SANDBOX_MODE=path) put every app on the sandbox host itself:
+//   <SANDBOX_DOMAIN>/~pv-<token>/        → draft preview        <SANDBOX_DOMAIN>/~<slug>/ → published app
+// The page drops the prefix from its address before the app starts (client-side routers expect to own the
+// path), and a cookie remembers which app the tab is showing so its absolute asset URLs still resolve.
 import type { MiddlewareHandler } from 'hono';
-import { PREVIEW_HOST_PREFIX, PREVIEW_VERSION_SEPARATOR } from '../../shared/constants';
+import { getCookie } from 'hono/cookie';
+import { PREVIEW_HOST_PREFIX, PREVIEW_VERSION_SEPARATOR, SANDBOX_PATH_PREFIX } from '../../shared/constants';
 import { mimeFor } from '../../shared/paths';
 import { isValidSlug } from '../../shared/slug';
 import type { ProjectFile } from '../../shared/types';
@@ -137,11 +143,57 @@ function servePublishedProject(project: ProjectRow | null, pathname: string, ifN
 
 const KNOWN_LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
+/** Remembers which app a browser tab on the shared sandbox host is showing. */
+const SITE_COOKIE = 'yasa_site';
+const LABEL_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
+const PATH_LABEL = new RegExp(`^/${SANDBOX_PATH_PREFIX}([a-z0-9][a-z0-9-]{0,80})(/.*)?$`);
+/** Runs before the app: takes the sandbox prefix out of the address, so routers see the path they expect. */
+const PATH_BOOT = `<script>(function(){try{var m=/^\\/${SANDBOX_PATH_PREFIX}[a-z0-9-]+(\\/.*)?$/.exec(location.pathname);if(m)history.replaceState(history.state,"",(m[1]||"/")+location.search+location.hash)}catch(e){}})()</script>`;
+
+/** Adds the address fix and the app cookie to a page served under a path label. */
+async function inPathMode(response: Response, label: string, secure: boolean): Promise<Response> {
+  const headers = new Headers(response.headers);
+  // Previews sit in a frame on the builder's site: the cookie has to be allowed there (partitioned per site).
+  headers.append('Set-Cookie', `${SITE_COOKIE}=${label}; Path=/; Max-Age=86400; HttpOnly; ${secure ? 'SameSite=None; Secure; Partitioned' : 'SameSite=Lax'}`);
+  if (response.status !== 200 || !(headers.get('Content-Type') ?? '').includes('text/html')) {
+    return new Response(response.body, { status: response.status, headers });
+  }
+  const html = await response.text();
+  const at = html.search(/<head[^>]*>/i);
+  const end = at === -1 ? -1 : html.indexOf('>', at) + 1;
+  return new Response(end > 0 ? html.slice(0, end) + PATH_BOOT + html.slice(end) : PATH_BOOT + html, { status: 200, headers });
+}
+
+async function serveLabel(label: string, pathname: string, ifNoneMatch: string | undefined): Promise<Response> {
+  if (label.startsWith(PREVIEW_HOST_PREFIX)) return servePreview(label, pathname);
+  return servePublished(label, pathname, ifNoneMatch);
+}
+
 export function sandboxMiddleware(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const config = getConfig();
     const host = (c.req.header('host') ?? '').toLowerCase();
     const suffix = `.${config.sandboxDomain}`;
+
+    // Apps on one shared host. That host must not be the builder's own: generated code would run on its origin.
+    if (config.sandboxMode === 'path' && host === config.sandboxDomain && host !== new URL(config.appUrl).host.toLowerCase()) {
+      if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+        return new Response('Method not allowed', { status: 405, headers: { ...baseHeaders(), Allow: 'GET, HEAD' } });
+      }
+      const full = decodePath(new URL(c.req.url).pathname);
+      if (full === null) return notFoundPage('File not found.');
+      const named = PATH_LABEL.exec(full);
+      const remembered = getCookie(c, SITE_COOKIE) ?? '';
+      const label = named ? named[1]! : LABEL_RE.test(remembered) ? remembered : '';
+      if (!label) return notFoundPage('Open this app with its full link.');
+      try {
+        const response = await serveLabel(label, named ? named[2] || '/' : full, c.req.header('if-none-match'));
+        return named ? await inPathMode(response, label, config.sandboxProtocol === 'https') : response;
+      } catch (err) {
+        logger.error('Sandbox request failed', { host, error: err });
+        return htmlResponse('<!doctype html><title>Error</title><p>Something went wrong while building this app.</p>', { 'Cache-Control': 'no-store' }, 500);
+      }
+    }
 
     if (!host.endsWith(suffix)) {
       // The bare sandbox domain is user-content territory: never serve the builder there in production.
@@ -174,8 +226,7 @@ export function sandboxMiddleware(): MiddlewareHandler<AppEnv> {
     if (pathname === null) return notFoundPage('File not found.');
 
     try {
-      if (label.startsWith(PREVIEW_HOST_PREFIX)) return await servePreview(label, pathname);
-      return servePublished(label, pathname, c.req.header('if-none-match'));
+      return await serveLabel(label, pathname, c.req.header('if-none-match'));
     } catch (err) {
       logger.error('Sandbox request failed', { host, error: err });
       return htmlResponse('<!doctype html><title>Error</title><p>Something went wrong while building this app.</p>', { 'Cache-Control': 'no-store' }, 500);

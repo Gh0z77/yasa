@@ -2,13 +2,13 @@ import { Hono } from 'hono';
 import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import { z } from 'zod';
 import { LIMITS, RATE_LIMITS } from '../../shared/constants';
-import type { ChatEvent, ChatRequest, MessagesResponse, OkResponse, StopResponse } from '../../shared/types';
-import { getActiveJob, isGenerating, startChatJob, type ChatJob } from '../ai/jobs';
+import type { ChatEvent, ChatMessage, ChatRequest, MessagesResponse, OkResponse, StopResponse } from '../../shared/types';
+import { getActiveJob, isGenerating, remoteGeneration, startChatJob, type ChatJob } from '../ai/jobs';
 import { editProject, ownProject, viewProject } from '../lib/access';
 import { conflict } from '../lib/errors';
 import { RateLimiter } from '../lib/rate-limit';
 import { parseJson, zLocale, zModelId } from '../lib/validate';
-import { clearMessages, listMessages } from '../services/messages';
+import { clearMessages, getMessage, listMessages } from '../services/messages';
 import type { AppContext, AppEnv } from '../types';
 
 const chatLimiter = new RateLimiter(RATE_LIMITS.chatPerMinute, 60_000);
@@ -97,6 +97,42 @@ function pipeJob(c: AppContext, job: ChatJob, first: ChatEvent | null): Response
   });
 }
 
+/**
+ * Follows a generation that another instance is running, by reading its message from the database until it is
+ * finished: coarser than the live stream (a snapshot every second and a half), but nothing is lost.
+ */
+function pipeRemote(c: AppContext, projectId: string, running: ChatMessage): Response {
+  c.header('Cache-Control', 'no-cache, no-transform');
+  c.header('X-Accel-Buffering', 'no');
+  return streamSSE(c, async (stream: SSEStreamingApi) => {
+    let closed = false;
+    stream.onAbort(() => {
+      closed = true;
+    });
+    const send = (event: ChatEvent) => stream.writeSSE({ event: event.type, data: JSON.stringify(event) });
+    const userMessage = listMessages(projectId, 6).filter((m) => m.role === 'user' && m.createdAt <= running.createdAt).pop() ?? null;
+    let last = '';
+    for (let waited = 0; !closed && waited < 600_000; waited += 1500) {
+      const message = getMessage(running.id);
+      if (!message) return;
+      if (message.status !== 'streaming') {
+        // The files changed while nobody was listening: have the client reload them.
+        await send({ type: 'files_changed', changes: [] });
+        await send({ type: 'done', message });
+        return;
+      }
+      const state = JSON.stringify(message.parts);
+      if (state !== last) {
+        last = state;
+        await send({ type: 'snapshot', userMessage, assistantMessage: message });
+      } else {
+        await stream.write(': ping\n\n');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  });
+}
+
 export const chatRoutes = new Hono<AppEnv>();
 
 chatRoutes.get('/:id/messages', (c) => {
@@ -122,7 +158,10 @@ chatRoutes.post('/:id/chat', async (c) => {
 chatRoutes.get('/:id/chat/active', (c) => {
   const { row } = editProject(c);
   const job = getActiveJob(row.id);
-  if (!job) return c.body(null, 204);
+  if (!job) {
+    const remote = remoteGeneration(row.id);
+    return remote ? pipeRemote(c, row.id, remote) : c.body(null, 204);
+  }
   const snap = job.snapshot();
   return pipeJob(c, job, { type: 'snapshot', userMessage: snap.userMessage, assistantMessage: snap.assistantMessage });
 });

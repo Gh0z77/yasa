@@ -47,6 +47,8 @@ export const RATE_LIMITS = {
 export const PREVIEW_HOST_PREFIX = 'pv-';
 /** pv-<token>--v<N>.<SANDBOX_DOMAIN> serves version N read-only. */
 export const PREVIEW_VERSION_SEPARATOR = '--v';
+/** Marks the first path segment as a sandbox label when generated apps share one host (SANDBOX_MODE=path). */
+export const SANDBOX_PATH_PREFIX = '~';
 
 export const RESERVED_SLUGS = [
   'www', 'api', 'app', 'admin', 'static', 'assets', 'mail', 'preview', 'yasa', 'help', 'docs', 'status',

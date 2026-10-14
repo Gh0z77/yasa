@@ -47,8 +47,8 @@ export function apiGuard(): MiddlewareHandler<AppEnv> {
 
 /** Content-Security-Policy for the builder UI (production static responses). */
 export function builderCsp(): string {
-  const { sandboxProtocol, sandboxDomain, clerk } = getConfig();
-  const frames = `${sandboxProtocol}://*.${sandboxDomain}`;
+  const { sandboxProtocol, sandboxDomain, sandboxMode, clerk } = getConfig();
+  const frames = sandboxMode === 'path' ? `${sandboxProtocol}://${sandboxDomain}` : `${sandboxProtocol}://*.${sandboxDomain}`;
   // Clerk's browser SDK is served by, and talks to, the instance's Frontend API; its bot and abuse checks use
   // Turnstile and *.protect.clerk.com (the latter on non-default ports, hence the port wildcard).
   const clerkApi = clerk ? frontendApiFromPublishableKey(clerk.publishableKey) : null;

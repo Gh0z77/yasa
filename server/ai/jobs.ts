@@ -3,8 +3,9 @@ import { LIMITS } from '../../shared/constants';
 import type { Attachment, ChatEvent, ChatMessage, ChatRequest, User } from '../../shared/types';
 import { getConfig } from '../env';
 import { conflict, HttpError, rateLimited } from '../lib/errors';
+import { keepAlive, staleGenerationMs } from '../lib/hosting';
 import { logger } from '../lib/logger';
-import { createMessage } from '../services/messages';
+import { createMessage, findRunningMessage } from '../services/messages';
 import type { ProjectRow } from '../services/projects';
 import { attachUploadToProject, getUpload, uploadFileName } from '../services/uploads';
 import { countServerFixesToday, countServerMessagesToday } from '../services/usage';
@@ -73,7 +74,13 @@ export function getActiveJob(projectId: string): ChatJob | null {
 }
 
 export function isGenerating(projectId: string): boolean {
-  return jobs.has(projectId);
+  return jobs.has(projectId) || remoteGeneration(projectId) !== null;
+}
+
+/** A generation for this project that runs on another instance (serverless hosts only). */
+export function remoteGeneration(projectId: string): ChatMessage | null {
+  if (!getConfig().hosted || jobs.has(projectId)) return null;
+  return findRunningMessage(projectId, staleGenerationMs());
 }
 
 export function isGeneratingForUser(userId: string): boolean {
@@ -112,7 +119,7 @@ function loadAttachments(user: User, projectId: string, ids: string[] | undefine
  */
 export function startChatJob(input: StartChatInput): ChatJob {
   const { project, user, request } = input;
-  if (jobs.has(project.id)) throw conflict('The AI is already working on this project');
+  if (isGenerating(project.id)) throw conflict('The AI is already working on this project');
   if (jobs.size >= getConfig().maxJobsGlobal) throw rateLimited('The server is busy. Try again in a moment.');
   let mine = 0;
   for (const job of jobs.values()) if (job.userId === user.id) mine++;
@@ -152,6 +159,9 @@ export function startChatJob(input: StartChatInput): ChatJob {
 
   const job = new Job(project.id, user.id, userMessage, assistantMessage);
   jobs.set(project.id, job);
+  // Where requests may only run for so long, stop in time: what was built so far is saved as a version.
+  const timeLimit = getConfig().generationTimeLimitMs;
+  const deadline = timeLimit > 0 ? setTimeout(() => job.stop(), timeLimit) : null;
 
   job.done = new Promise<void>((resolve) => {
     // Deferred so the caller can subscribe before the first event.
@@ -178,11 +188,13 @@ export function startChatJob(input: StartChatInput): ChatJob {
       })
         .catch((err) => logger.error('Chat job crashed', { projectId: project.id, error: err }))
         .finally(() => {
+          if (deadline) clearTimeout(deadline);
           jobs.delete(project.id);
           job.listeners.clear();
           resolve();
         });
     });
   });
+  keepAlive(job.done);
   return job;
 }

@@ -161,14 +161,30 @@ export function listMessages(projectId: string, limit = 200): ChatMessage[] {
 }
 
 /** Startup recovery: jobs do not survive a restart. */
-export function markStreamingMessagesInterrupted(): number {
-  const rows = all<{ id: string; parts_json: string }>("SELECT id, parts_json FROM messages WHERE status = 'streaming'");
+/**
+ * Marks unfinished generations as interrupted. `olderThanMs` spares the ones that may still be running on
+ * another instance (0 = all of them: a single server that has just restarted).
+ */
+export function markStreamingMessagesInterrupted(olderThanMs = 0): number {
+  const before = new Date(Date.now() - olderThanMs).toISOString();
+  const rows = all<{ id: string; parts_json: string }>("SELECT id, parts_json FROM messages WHERE status = 'streaming' AND created_at <= ?", before);
   for (const row of rows) {
     const parts = parseJson<MessagePart[]>(row.parts_json, []);
     parts.push({ type: 'error', code: 'interrupted', message: 'The server restarted while this was being generated.' });
     run("UPDATE messages SET status = 'error', parts_json = ? WHERE id = ?", JSON.stringify(parts), row.id);
   }
   return rows.length;
+}
+
+/** The generation another instance is running for this project right now, if any. */
+export function findRunningMessage(projectId: string, withinMs: number): ChatMessage | null {
+  const since = new Date(Date.now() - withinMs).toISOString();
+  const row = get<{ id: string }>(
+    "SELECT id FROM messages WHERE project_id = ? AND role = 'assistant' AND status = 'streaming' AND created_at > ? ORDER BY seq DESC LIMIT 1",
+    projectId,
+    since,
+  );
+  return row ? getMessage(row.id) : null;
 }
 
 export function clearMessages(projectId: string): void {

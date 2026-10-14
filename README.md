@@ -192,6 +192,8 @@ Birinchi ochilishda paketlar CDN’dan yuklangani uchun koʻrinish 10–30 soniy
 
 Toʻliq qoʻllanma (Docker + Caddy, domenlar, sertifikatlar): [docs/DEPLOY.md](docs/DEPLOY.md).
 
+**Vercel.** Disksiz (serverless) joylashtirish ham mumkin: maʼlumotlar Postgres’da (`DATABASE_URL`, masalan Supabase) turadi, yaratilgan ilovalar bitta umumiy manzilda ochiladi. Qadamlar va cheklovlar: [docs/VERCEL.md](docs/VERCEL.md).
+
 ```bash
 npm run build
 ```

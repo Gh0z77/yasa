@@ -21,7 +21,7 @@ if (portArg) process.env.PORT = portArg.slice('--port='.length);
 const config = getConfig();
 getDb();
 
-const interrupted = markStreamingMessagesInterrupted();
+const interrupted = markStreamingMessagesInterrupted(0);
 if (interrupted > 0) logger.warn(`Marked ${interrupted} unfinished generation(s) as interrupted`);
 deleteExpiredSessions();
 

@@ -127,8 +127,13 @@ export function mimeFor(path: string): string {
   return MIME[extname(path)] ?? 'application/octet-stream';
 }
 
-/** http://pv-abc.localhost:3000/ + 7 → http://pv-abc--v7.localhost:3000/ */
+/**
+ * http://pv-abc.localhost:3000/ + 7 → http://pv-abc--v7.localhost:3000/
+ * https://sites.example/~pv-abc/ + 7 → https://sites.example/~pv-abc--v7/ (apps on one shared host)
+ */
 export function versionPreviewUrl(previewUrl: string, versionNumber: number): string {
+  const inPath = /^(https?:\/\/[^/]+\/~[^/]+?)\/?$/.exec(previewUrl);
+  if (inPath) return `${inPath[1]}${PREVIEW_VERSION_SEPARATOR}${versionNumber}/`;
   const m = /^(https?:\/\/)([^./]+)(\..*)$/.exec(previewUrl);
   if (!m) return previewUrl;
   return `${m[1]}${m[2]}${PREVIEW_VERSION_SEPARATOR}${versionNumber}${m[3]}`;
