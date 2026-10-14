@@ -118,6 +118,21 @@ describe('unused files', () => {
     expect(detail.files.find((f) => f.path === 'src/App.tsx')?.content.trim()).toBe(APP_EMPTY);
   });
 
+  it('tells the model which App.tsx is only the starter screen', async () => {
+    const { renderProjectFiles } = await import('../../server/ai/context');
+    const { getTemplateFiles } = await import('../../server/template');
+    const starter = getTemplateFiles('uz')['src/App.tsx']!.content;
+    const untouched = renderProjectFiles(treeFromFiles([{ path: 'src/App.tsx', content: starter, encoding: 'utf8' }]));
+    expect(untouched).toContain('<file path="src/App.tsx" placeholder="true" note="starter screen only');
+    expect(untouched).not.toContain('animate-bounce');
+    // an app appended below the starter screen is shown in full, with the instruction to drop the starter part
+    const mixed = renderProjectFiles(treeFromFiles([{ path: 'src/App.tsx', content: `${starter}\nexport function Wedding() { return null; }\n`, encoding: 'utf8' }]));
+    expect(mixed).toContain('still contains the starter screen');
+    expect(mixed).toContain('export function Wedding()');
+    const built = renderProjectFiles(treeFromFiles([{ path: 'src/App.tsx', content: APP_WIRED, encoding: 'utf8' }]));
+    expect(built).not.toContain('placeholder="true"');
+  });
+
   it('does not insist: a model that leaves the file unused still finishes the turn', async () => {
     const app = setupTestApp(KEYS);
     const provider = scripted([`Done.${write('src/components/Stats.tsx', STATS)}`, 'It is kept for later on purpose.']);

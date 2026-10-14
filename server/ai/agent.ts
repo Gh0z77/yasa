@@ -16,6 +16,7 @@ import type {
 import { getConfig } from '../env';
 import { logger } from '../lib/logger';
 import { buildProject, type BuildOutput } from '../preview/bundler';
+import { isPlaceholderApp } from '../template';
 import { applyFileChanges, listFiles } from '../services/files';
 import { listMessages, updateMessage } from '../services/messages';
 import { getProjectRow, updateProject, type ProjectRow } from '../services/projects';
@@ -73,8 +74,6 @@ interface PassResult {
   cut: ProviderError | null;
 }
 
-/** Words of the starter screen's App.tsx (server/template): while they are there, nothing was built yet. */
-const PLACEHOLDER_MARK = 'Placeholder screen — it is replaced as soon as you describe your app in the chat.';
 const UPLOAD_REF = /\/uploads\/(upl_[a-z2-7]{26})\.(?:png|jpe?g|webp|gif)/g;
 const PERSIST_EVERY_MS = 2000;
 const RAW_HISTORY_MAX = 300_000;
@@ -689,12 +688,12 @@ export async function runTurn(ctx: TurnContext): Promise<void> {
       if (
         summary.ok &&
         failedActions.length === 0 &&
-        withinBudget &&
-        canRetry &&
+        !failed &&
+        !signal.aborted &&
         !placeholderNudged &&
         mode === 'build' &&
         request.intent !== 'fix' &&
-        (tree.get('src/App.tsx')?.content ?? '').includes(PLACEHOLDER_MARK)
+        isPlaceholderApp(tree.get('src/App.tsx')?.content)
       ) {
         placeholderNudged = true;
         attempts++;

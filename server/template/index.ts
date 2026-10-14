@@ -82,3 +82,10 @@ export function isTemplateFile(path: string, content: string): boolean {
   if (hashes.has(sha256(content))) return true;
   return content.includes('\r') && hashes.has(sha256(content.replace(/\r\n?/g, '\n')));
 }
+
+/** Words of the starter screen's App.tsx: while they are in the file, the app the user asked for was not built. */
+export const PLACEHOLDER_MARK = 'Placeholder screen — it is replaced as soon as you describe your app in the chat.';
+
+export function isPlaceholderApp(content: string | undefined): boolean {
+  return Boolean(content?.includes(PLACEHOLDER_MARK));
+}

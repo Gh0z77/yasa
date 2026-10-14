@@ -9,7 +9,7 @@ import type {
   SelectedElement,
   VersionSummary,
 } from '../../shared/types';
-import { isTemplateFile, TEMPLATE_EXPORTS } from '../template';
+import { isPlaceholderApp, isTemplateFile, TEMPLATE_EXPORTS } from '../template';
 import type { WorkingTree } from './apply';
 import type { ProviderContentImage, ProviderContentText, ProviderMessage } from './providers/types';
 
@@ -76,6 +76,19 @@ export function renderProjectFiles(tree: WorkingTree, opts: RenderFilesOptions =
       continue;
     }
     budget -= file.content.length;
+    if (path === 'src/App.tsx' && isPlaceholderApp(file.content)) {
+      // Only the starter screen: the model must replace it, not build below it.
+      if (isTemplateFile(path, file.content)) {
+        rendered.set(path, `<file path="src/App.tsx" placeholder="true" note="starter screen only: replace this whole file with yasa-write; keep nothing of it" />`);
+        continue;
+      }
+      // An app was built below the starter screen: show it all and say what has to go.
+      rendered.set(
+        path,
+        `<file path="src/App.tsx" placeholder="true" note="still contains the starter screen above the app: rewrite the file without it">\n${guard(file.content, 'file')}${file.content.endsWith('\n') ? '' : '\n'}</file>`,
+      );
+      continue;
+    }
     rendered.set(path, `<file path="${escapeAttr(path)}">\n${guard(file.content, 'file')}${file.content.endsWith('\n') ? '' : '\n'}</file>`);
   }
   return `<project_files>\n${paths.map((p) => rendered.get(p)).join('\n')}\n</project_files>`;
